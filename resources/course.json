@@ -1,0 +1,98 @@
+[
+    {
+        "type" : "category",
+        "info" : {
+            "id" : 0,
+            "parameters" : {}
+        },
+        "children" : [
+            {
+                "type" : "category",
+                "info" : {
+                    "id" : 0,
+                    "parameters" : {}
+                },
+                "children" : [
+                    {   
+                        "type" : "course",
+                        "info": {
+                            "id" : 0,
+                            "parameters" : {}
+                        },
+                        "children": [
+                            {
+                                "type" : "lp_category",
+                                "info" : {
+                                    "id": 0,
+                                    "parameters" : {}
+                                },
+                                "children" : [
+                                    {
+                                        "type" : "learningpath",
+                                        "info" : {
+                                            "id" : 0,
+                                            "parameters" : {}
+                                        },
+                                        "children" : [
+                                            {
+                                                "type" : "section",
+                                                "info" : {
+                                                    "id" : 0,
+                                                    "parameters" : {}
+                                                },
+                                                "children" : [
+                                                    {
+                                                        "type" : "document",
+                                                        "info" : {
+                                                            "id" : 0,
+                                                            "parameters" : {}
+                                                        },
+                                                        "children" : []
+                                                    },
+                                                    {
+                                                        "type" : "quiz",
+                                                        "info" : {
+                                                            "id" : 0,
+                                                            "parameters" : {}
+                                                        },
+                                                        "children" : [
+                                                            {
+                                                                "type" : "question",
+                                                                "info" : {
+                                                                    "id" : 0,
+                                                                    "parameters" : {}
+                                                                },
+                                                                "children" : [
+                                                                    {
+                                                                        "type" : "answer",
+                                                                        "info" : {
+                                                                            "id" : 0,
+                                                                            "parameters" : {}
+                                                                        },
+                                                                        "children" : []
+                                                                    },
+                                                                    {
+                                                                        "type" : "answer",
+                                                                        "info" : {
+                                                                            "id" : 0,
+                                                                            "parameters" : {}
+                                                                        },
+                                                                        "children" : []
+                                                                    }
+                                                                ]
+                                                            }
+                                                        ]
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+]
