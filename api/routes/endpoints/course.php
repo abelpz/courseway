@@ -234,7 +234,7 @@ $endpoint->post('/course', function (Request $req, Response $res, $args) use ($e
 
     $course = CourseManager::create_course($data, $data['user_id']);
     if (!$course)
-        throwException($req, '', 'Course could not be created.');
+        throwException($req, '422', 'Course could not be created.');
 
     if (!empty($data['intro_text'])) {
         //Add introduction text to course homepage
