@@ -9,6 +9,8 @@ use Slim\Exception\HttpInternalServerErrorException;
 use Slim\Exception\HttpNotImplementedException;
 use Slim\Exception\HttpSpecializedException;
 
+use CourseWay\Exception\HttpGenericException;
+
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 function throwException(Request $request, $code, $message){
@@ -36,7 +38,7 @@ function throwException(Request $request, $code, $message){
       break;
     
     default:
-      throw new HttpSpecializedException($request, $message);
+      throw new HttpGenericException($request, $message, $code);
       break;
   }
 

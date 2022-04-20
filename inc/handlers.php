@@ -80,8 +80,8 @@ class JsonErrorRenderer implements ErrorRendererInterface
 $displayErrorDetails = (bool)($_ENV['DEBUG'] ?? false);
 
 // Add Error Middleware
-// $errorMiddleware = $app->addErrorMiddleware(true, true, true);
-$errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, true, true);
+$errorMiddleware = $app->addErrorMiddleware(true, true, true);
+// $errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, true, true);
 
 // Get the default error handler and register my custom error renderer.
 $errorHandler = $errorMiddleware->getDefaultErrorHandler();

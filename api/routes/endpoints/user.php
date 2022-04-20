@@ -7,6 +7,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * @OA\Get(
  *     path="/users", tags={"Users"},
  *     summary="Get list of users",
+ *     security={{"bearerAuth": {}}},
  *     @OA\Parameter(
  *          description="The user id",
  *          in="query",

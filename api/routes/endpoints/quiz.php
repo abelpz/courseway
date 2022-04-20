@@ -2,7 +2,9 @@
 
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
-use Chamilo\CourseBundle\Component\CourseCopy\CourseBuilder;
+
+use Symfony\Component\Validator\Constraints as Assert;
+use CourseWay\Validation\Validator;
 
 /**
  * @OA\Get(
@@ -850,82 +852,109 @@ $endpoint->get('/course/{course_code}/test/{test_id}/questions', function (Reque
  *         )
  *     ),
  *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="400–499",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="500-599",ref="#/components/responses/ServerError"),
  * )
  */
 
 // [[TO DO: add new config params]]
 
+/* 
+Question types:
+'UNIQUE_ANSWER': 1
+'MULTIPLE_ANSWER': 2
+'FILL_IN_BLANKS': 3
+'MATCHING': 4
+'FREE_ANSWER': 5
+'HOT_SPOT': 6
+'HOT_SPOT_ORDER': 7
+'HOT_SPOT_DELINEATION': 8
+'MULTIPLE_ANSWER_COMBINATION': 9
+'UNIQUE_ANSWER_NO_OPTION': 10
+'MULTIPLE_ANSWER_TRUE_FALSE': 11
+'MULTIPLE_ANSWER_COMBINATION_TRUE_FALSE': 12
+'ORAL_EXPRESSION': 13
+'GLOBAL_MULTIPLE_ANSWER': 14
+'MEDIA_QUESTION': 15
+'CALCULATED_ANSWER': 16
+'UNIQUE_ANSWER_IMAGE': 17
+'DRAGGABLE': 18
+'MATCHING_DRAGGABLE': 19
+'ANNOTATION': 20
+'READING_COMPREHENSION': 21
+'MULTIPLE_ANSWER_TRUE_FALSE_DEGREE_CERTAINTY': 22
+*/
+
 $endpoint->post('/course/{course_code}/test/{test_id}/question', function (Request $req, Response $res, $args) use ($endpoint) {
-    $data = json_decode($req->getBody()->getContents(), true);
-    $token = $req->getAttribute("token");
-
-    if (empty($args['course_code']) or empty($data['title']) or empty($args['test_id']) or empty($data['type'])) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'You are required to provide: course_code, test_id, title, type'));
-        return $res;
-    }
-
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
-
-    if ($user->isSuperAdmin()) {
-
-        $course = api_get_course_info($args['course_code']);
-
-        if (empty($course)) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Could not find course with course code: ' . $args['course_code']));
-            return $res;
-        }
-
-        $courseId = $course['real_id'];
-
-        $exercise = new Exercise($courseId);
+    //Validate args
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'test_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ]),
+        ]
+    ]));
         
-        if(!$exercise->read($args['test_id'])){
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', "Couldn't find exercise with id = " . $args['test_id']));
-        }
+    $data = json_decode($req->getBody()->getContents(), true);
+    //Validate params
+    Validator::validate($req, $data, new Assert\Collection([
+        'fields' => [
+            'title' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'type' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('integer'),
+                new Assert\Range([
+                    'min' => 1,
+                    'max' => 22,
+                ])
+            ]),
+            'description' => new Assert\Optional([new Assert\Type('string')]),
+            'ponderation' => new Assert\Optional([new Assert\Type('integer')]),
+            'picture' => new Assert\Optional([new Assert\Type('string')]),
+            'level' => new Assert\Optional([new Assert\Type('integer')]),
+            'extra' => new Assert\Optional([new Assert\Type('string')]),
+            'category' => new Assert\Optional([new Assert\Type('integer')]),
+            'feedback' => new Assert\Optional([new Assert\Type('string')]),
+        ]
+    ]));
 
-        $question = new CWQuestion();
-        $question->question = $data['title'];
-        $question->description = $data['description'] ?: '';
-        $question->weighting = $data['ponderation'] ?: 0;
-        $question->type = $data['type'];
-        $question->picture = $data['picture'] ?: ''; //TODO: Add function to receive Base64 image and upload it to $question->picture
-        $question->level = $data['level'] ?: 1;
-        $question->course = $course;
-        $question->extra = $data['extra'] ?: '';
-        $question->category = $data['category'] ?: 0;
-        $question->feedback = $data['feedback'] ?: null;
-        //var_dump(json_encode($question, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-        $question->save($exercise);
+    $course = api_get_course_info($args['course_code']);
+    if (empty($course))
+        throwException($req,'404', 'Could not find course with course code: ' . $args['course_code']);
 
-        if ($question->iid) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(200);
-            $res->getBody()
-                ->write(json_encode($question, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-        } else {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Question could not be created'));
-        }
-    } else {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(401);
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
-    }
+    $courseId = $course['real_id'];
+    $exercise = new Exercise($courseId);
+    if(!$exercise->read($args['test_id']))
+        throwException($req, '404', "Couldn't find exercise with id = " . $args['test_id']);
 
+    $question = new CWQuestion();
+    $question->question = $data['title'];
+    $question->description = $data['description'] ?: '';
+    $question->weighting = $data['ponderation'] ?: 0;
+    $question->type = $data['type'];
+    $question->picture = $data['picture'] ?: ''; //TODO: Add function to receive Base64 image and upload it to $question->picture
+    $question->level = $data['level'] ?: 1;
+    $question->course = $course;
+    $question->extra = $data['extra'] ?: '';
+    $question->category = $data['category'] ?: 0;
+    $question->feedback = $data['feedback'] ?: null;
+    $question->save($exercise);
+
+    if (!$question->iid)
+        throwException($req, '422', "Question could not be created");
+
+    $res->withHeader("Content-Type", "application/json");
+    $res->withStatus(200);
+    $res->getBody()
+        ->write(json_encode($question, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
     return $res;
 });
 
@@ -939,12 +968,6 @@ $endpoint->post('/course/{course_code}/test/{test_id}/question', function (Reque
  *          description="unique string identifier of the parent course.",
  *          in="path",
  *          name="course_code",
- *          required=true,
- *     ),
- *     @OA\Parameter(
- *          description="unique string identifier of the parent test.",
- *          in="path",
- *          name="test_id",
  *          required=true,
  *     ),
  *     @OA\Parameter(
@@ -972,7 +995,7 @@ $endpoint->post('/course/{course_code}/test/{test_id}/question', function (Reque
  * )
  */
 
-$endpoint->post('/course/{course_code}/test/{test_id}/question/{question_id}/image', function (Request $req, Response $res, $args) use ($endpoint) {
+$endpoint->post('/course/{course_code}/question/{question_id}/image', function (Request $req, Response $res, $args) use ($endpoint) {
 
     $res->withHeader("Content-Type", "application/json");
 
@@ -988,7 +1011,7 @@ $endpoint->post('/course/{course_code}/test/{test_id}/question/{question_id}/ima
         return $res;
     }
 
-    if (empty($args['course_code']) or empty($args['test_id']) or empty($args['question_id'])) {
+    if (empty($args['course_code']) or empty($args['question_id'])) {
         $res->withStatus(400);
         $res->getBody()
             ->write(slim_msg('error', 'You are required to provide: course_code, test_id, question_id'));
@@ -1008,15 +1031,6 @@ $endpoint->post('/course/{course_code}/test/{test_id}/question/{question_id}/ima
         $res->withStatus(400);
         $res->getBody()
             ->write(slim_msg('error', 'Could not find course with course code: ' . $args['course_code']));
-        return $res;
-    }
-
-    $courseId = $course['real_id'];
-    $exercise = new Exercise($courseId);
-    if (!$exercise->read($args['test_id'])) {
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', "Couldn't find exercise with id = " . $args['test_id']));
         return $res;
     }
 
@@ -1045,6 +1059,127 @@ $endpoint->post('/course/{course_code}/test/{test_id}/question/{question_id}/ima
     return $res;
 });
 
+/**
+ * @OA\Delete(
+ *     path="/course/{course_code}/test/{test_id}/question/{question_id}",
+ *     tags={"Tests"},
+ *     summary="Delete a question from a test.",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the parent course.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique string identifier of the parent test.",
+ *          in="path",
+ *          name="test_id",
+ *          required=true,
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique string identifier of the parent question.",
+ *          in="path",
+ *          name="question_id",
+ *          required=true,
+ *     ),
+ *     @OA\Response(response="200", description="Success"),
+ *     @OA\Response(response="401", description="Unauthorized"),
+ *     @OA\Response(response="400", description="Bad request")
+ * )
+ */
+
+
+$endpoint->delete('/course/{course_code}/test/{test_id}/question/{question_id}', function (Request $req, Response $res, $args) use ($endpoint) {
+    $res->withHeader("Content-Type", "application/json");
+
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Type('string'),
+            'test_id' => new Assert\Type('numeric'),
+            'question_id' => new Assert\Type('numeric'),
+        ]
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (empty($course))
+        throwException($req,'404', "Could not find course with course code = {$args['course_code']}");
+
+    $courseId = $course['real_id'];
+    $exercise = new Exercise($courseId);
+    if (!$exercise->read($args['test_id']))
+        throwException($req, '404', "Could not find exercise with id =  {$args['test_id']}");
+
+    $question = Question::read($args['question_id'], $course, false);
+    if (!$question)
+        throwException($req, "404", "Could not find question with id = {$args['question_id']}");
+
+    $deleted = $question->delete($exercise->iid);
+
+    if(!$deleted)
+        throwException($req, '0', "Couldn't delete question.");
+
+    $res->withStatus(200);
+    $res->getBody()
+        ->write("Question {$args['question_id']} was deleted");
+    return $res;
+});
+
+/**
+ * @OA\Delete(
+ *     path="/course/{course_code}/question/{question_id}",
+ *     tags={"Tests"},
+ *     summary="Delete a question from all tests in a course.",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the parent course.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique string identifier of the parent question.",
+ *          in="path",
+ *          name="question_id",
+ *          required=true,
+ *     ),
+ *     @OA\Response(response="200", description="Success"),
+ *     @OA\Response(response="401", description="Unauthorized"),
+ *     @OA\Response(response="400", description="Bad request")
+ * )
+ */
+
+
+$endpoint->delete('/course/{course_code}/question/{question_id}', function (Request $req, Response $res, $args) use ($endpoint) {
+    $res->withHeader("Content-Type", "application/json");
+
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Type('string'),
+            'question_id' => new Assert\Type('numeric'),
+        ]
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (empty($course))
+        throwException($req, '404', "Could not find course with course code = {$args['course_code']}");
+
+    $courseId = $course['real_id'];
+
+    $question = Question::read((int) $args['question_id'], $course, false);
+    if (!$question)
+        throwException($req, "404", "Could not find question with id = {$args['question_id']}");
+
+    $deleted = $question->delete();
+
+    if (!$deleted)
+        throwException($req, '0', "Couldn't delete question.");
+
+    $res->withStatus(200);
+    $res->getBody()
+        ->write("Question {$args['question_id']} was deleted");
+    return $res;
+});
 
 /**
  * @OA\Get(

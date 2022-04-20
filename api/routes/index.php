@@ -1,7 +1,7 @@
 <?php
 
 /**
- * @OA\Info(title="CourseWay Chamilo API", version="0.1")
+ * @OA\Info(title="CourseWay Chamilo API", version="0.1.1")
  * @OA\Server(url="/plugin/courseway/api/v1")
  * @OA\Swagger(
  *  schemes={"http", "https"}

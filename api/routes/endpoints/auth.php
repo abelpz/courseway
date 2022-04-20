@@ -4,6 +4,9 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Firebase\JWT\JWT;
 
+use Symfony\Component\Validator\Constraints as Assert;
+use CourseWay\Validation\Validator;
+
 /**
  * @OA\Post(
  *     path="/auth", tags={"Auth"},
@@ -36,10 +39,22 @@ $endpoint->post('/auth', function (Request $req, Response $res, array $args) {
     $body = $req->getBody()->getContents();
     $data  = json_decode($body, true);
 
+    //Validate params
+    Validator::validate($req, $data, new Assert\Collection([
+        'fields' => [
+            'username' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'password' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+        ]
+    ]));
+
     $username = $data['username'];
     $password = $data['password'];
-    if (empty($username) || empty($password))
-        throwException($req, '400', 'Must provide a username and password');
 
     $user = UserManager::getManager()->findUserByUsername($username);
     if (!$user)
@@ -57,7 +72,7 @@ $endpoint->post('/auth', function (Request $req, Response $res, array $args) {
         throwException($req, '401', 'User must be an administrator.');
 
     $now = new DateTime();
-    $future = new DateTime("now +2 hours");
+    $future = new DateTime("now +12 hours");
     $server = $req->getServerParams();
 
     $jti = base64_encode(random_bytes(16));

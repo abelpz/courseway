@@ -22,7 +22,7 @@ $app->group('/api/v1', function ($api) {
         foreach (glob("api/routes/endpoints/*.php") as $filename) {
             include $filename;
         }
-    })->add(new ExampleAfterMiddleware());
+    })->add(new GroupValidation());
 });
 
 /**
