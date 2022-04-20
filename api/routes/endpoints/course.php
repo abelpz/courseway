@@ -43,8 +43,8 @@ use CourseWay\Validation\Validator;
  *          @OA\Schema(type="boolean"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="400–499",ref="#/components/responses/ClientError"),
- *     @OA\Response(response="500-599",ref="#/components/responses/ServerError"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
@@ -178,8 +178,8 @@ $endpoint->get('/courses', function (Request $req, Response $res, $args) use ($e
  *         )
  *     ),
  *     @OA\Response(response="201", description="Created"),
- *     @OA\Response(response="400–499",ref="#/components/responses/ClientError"),
- *     @OA\Response(response="500-599",ref="#/components/responses/ServerError"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
@@ -266,8 +266,8 @@ $endpoint->post('/course', function (Request $req, Response $res, $args) use ($e
  *     summary="Get list of categories",
  *     security={{"bearerAuth": {}}},
  *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="400–499",ref="#/components/responses/ClientError"),
- *     @OA\Response(response="500-599",ref="#/components/responses/ServerError"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
@@ -310,8 +310,8 @@ $endpoint->get('/courses/categories', function (Request $req, Response $res, $ar
  *         )
  *     ),
  *     @OA\Response(response="201", description="Created"),
- *     @OA\Response(response="400–499",ref="#/components/responses/ClientError"),
- *     @OA\Response(response="500-599",ref="#/components/responses/ServerError"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
@@ -365,10 +365,11 @@ use Chamilo\CourseBundle\Component\CourseCopy\CourseBuilder;
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="400–499",ref="#/components/responses/ClientError"),
- *     @OA\Response(response="500-599",ref="#/components/responses/ServerError"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 

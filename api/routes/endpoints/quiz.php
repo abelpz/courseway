@@ -16,6 +16,7 @@ use CourseWay\Validation\Validator;
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
  *     @OA\Response(response="401", description="Unauthorized"),
@@ -80,6 +81,7 @@ $endpoint->get('/course/{course_code}/tests', function (Request $req, Response $
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\RequestBody(
  *          @OA\MediaType(
@@ -369,12 +371,14 @@ $endpoint->post('/course/{course_code}/test', function (Request $req, Response $
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Parameter(
  *          description="unique integer identifier of the learningpath in which the test will be located.",
  *          in="path",
  *          name="learningpath_id",
  *          required=true,
+ *          @OA\Schema(type="integer"),
  *     ),
  *     @OA\RequestBody(
  *          @OA\MediaType(
@@ -681,12 +685,14 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/test', fun
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Parameter(
  *          description="unique integer identifier of the test you wish to retrieve.",
  *          in="path",
  *          name="test_id",
  *          required=true,
+ *          @OA\Schema(type="integer"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
  *     @OA\Response(response="401", description="Unauthorized"),
@@ -770,12 +776,14 @@ $endpoint->get('/course/{course_code}/test/{test_id}/questions', function (Reque
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Parameter(
  *          description="unique int identifier of the test in which the question will be added.",
  *          in="path",
  *          name="test_id",
  *          required=true,
+ *          @OA\Schema(type="integer"),
  *     ),
  *     @OA\RequestBody(
  *          @OA\MediaType(
@@ -852,8 +860,8 @@ $endpoint->get('/course/{course_code}/test/{test_id}/questions', function (Reque
  *         )
  *     ),
  *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="400–499",ref="#/components/responses/ClientError"),
- *     @OA\Response(response="500-599",ref="#/components/responses/ServerError"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
@@ -960,7 +968,7 @@ $endpoint->post('/course/{course_code}/test/{test_id}/question', function (Reque
 
 /**
  * @OA\Post(
- *     path="/course/{course_code}/test/{test_id}/question/{question_id}/image",
+ *     path="/course/{course_code}/question/{question_id}/image",
  *     tags={"Tests"},
  *     summary="Upload an image into a question",
  *     security={{"bearerAuth": {}}},
@@ -969,12 +977,14 @@ $endpoint->post('/course/{course_code}/test/{test_id}/question', function (Reque
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Parameter(
  *          description="unique string identifier of the parent question.",
  *          in="path",
  *          name="question_id",
  *          required=true,
+ *          @OA\Schema(type="integer"),
  *     ),
  *     @OA\RequestBody(
  *          @OA\MediaType(
@@ -1041,9 +1051,8 @@ $endpoint->post('/course/{course_code}/question/{question_id}/image', function (
             ->write(slim_msg('error', "Couldn't find question with id = " . $args['question_id']));
         return $res;
     }
-    var_dump($uploadedFiles);
+
     $uploaded = $question->uploadPicture($uploadedFiles['imageUpload']['tmp_name']);
-    var_dump($uploaded);
     $question->save(new Exercise());
 
     if ($question->iid && $uploaded) {
@@ -1070,18 +1079,21 @@ $endpoint->post('/course/{course_code}/question/{question_id}/image', function (
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Parameter(
- *          description="unique string identifier of the parent test.",
+ *          description="unique integer identifier of the parent test.",
  *          in="path",
  *          name="test_id",
  *          required=true,
+ *          @OA\Schema(type="integer"),
  *     ),
  *     @OA\Parameter(
- *          description="unique string identifier of the parent question.",
+ *          description="unique integer identifier of the parent question.",
  *          in="path",
  *          name="question_id",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
  *     @OA\Response(response="401", description="Unauthorized"),
@@ -1136,12 +1148,14 @@ $endpoint->delete('/course/{course_code}/test/{test_id}/question/{question_id}',
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Parameter(
- *          description="unique string identifier of the parent question.",
+ *          description="unique integer identifier of the parent question.",
  *          in="path",
  *          name="question_id",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
  *     @OA\Response(response="401", description="Unauthorized"),
@@ -1191,18 +1205,21 @@ $endpoint->delete('/course/{course_code}/question/{question_id}', function (Requ
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Parameter(
  *          description="unique integer identifier of the test.",
  *          in="path",
  *          name="test_id",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Parameter(
  *          description="unique integer identifier of the question you wish to retrieve answers from.",
  *          in="path",
  *          name="question_id",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
  *     @OA\Response(response="401", description="Unauthorized"),
@@ -1296,18 +1313,21 @@ $endpoint->get('/course/{course_code}/test/{test_id}/question/{question_id}/answ
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Parameter(
  *          description="unique int identifier of the test the answer will belong to.",
  *          in="path",
  *          name="test_id",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Parameter(
  *          description="unique int identifier of the question in which the answer will be added.",
  *          in="path",
  *          name="question_id",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\RequestBody(
  *          @OA\MediaType(

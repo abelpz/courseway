@@ -9,8 +9,6 @@
  * @OA\SecurityScheme(
  *  type="http",
  *  description="Use /auth to get token.",
- *  name="authorization",
- *  in="header",
  *  scheme="bearer",
  *  bearerFormat="JWT",
  *  securityScheme="bearerAuth"

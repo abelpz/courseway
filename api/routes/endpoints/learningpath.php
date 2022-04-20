@@ -12,7 +12,8 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *          description="the id of the course from which to list the learning paths",
  *          in="path",
  *          name="course_code",
- *          required=false,
+ *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
  *     @OA\Response(response="401", description="Unauthorized"),
@@ -71,6 +72,7 @@ $endpoint->get('/course/{course_code}/learningpaths', function (Request $req, Re
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\RequestBody(
  *          @OA\MediaType(
@@ -177,6 +179,7 @@ $endpoint->post('/course/{course_code}/learningpath', function (Request $req, Re
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
  *     @OA\Response(response="401", description="Unauthorized"),
@@ -253,6 +256,7 @@ $endpoint->get('/course/{course_code}/learningpaths/categories', function (Reque
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\RequestBody(
  *          @OA\MediaType(
@@ -333,12 +337,14 @@ $endpoint->post('/course/{course_code}/learningpaths/category', function (Reques
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Parameter(
  *          description="unique int identifier of the learning path from which sections will be listed.",
  *          in="path",
  *          name="learningpath_id",
  *          required=true,
+ *          @OA\Schema(type="integer"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
  *     @OA\Response(response="401", description="Unauthorized"),
@@ -401,12 +407,14 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/sections', 
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Parameter(
  *          description="unique int identifier of the learning path in which the section will be added.",
  *          in="path",
  *          name="learningpath_id",
  *          required=true,
+ *          @OA\Schema(type="integer"),
  *     ),
  *     @OA\RequestBody(
  *          @OA\MediaType(

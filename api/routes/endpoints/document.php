@@ -13,11 +13,13 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Parameter(
  *          description="path to retrieve documents from (i.e. '/images/gallery')",
  *          in="query",
  *          name="path",
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
  *     @OA\Response(response="401", description="Unauthorized"),
@@ -73,6 +75,7 @@ $endpoint->get('/course/{course_code}/documents', function (Request $req, Respon
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\RequestBody(
  *          @OA\MediaType(
@@ -97,7 +100,6 @@ $endpoint->get('/course/{course_code}/documents', function (Request $req, Respon
  *          @OA\MediaType(
  *             mediaType="application/json",
  *             @OA\Schema(
- *                 required={},
  *                 @OA\Property(
  *                     property="title",
  *                     type="string",
@@ -210,12 +212,14 @@ $endpoint->post('/course/{course_code}/documents/image', function (Request $req,
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Parameter(
  *          description="unique int identifier of the learning path in which the document is located.",
  *          in="path",
  *          name="learningpath_id",
  *          required=true,
+ *          @OA\Schema(type="integer"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
  *     @OA\Response(response="401", description="Unauthorized"),
@@ -286,12 +290,14 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/documents',
  *          in="path",
  *          name="course_code",
  *          required=true,
+ *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Parameter(
  *          description="unique int identifier of the learning path in which the section will be added.",
  *          in="path",
  *          name="learningpath_id",
  *          required=true,
+ *          @OA\Schema(type="integer"),
  *     ),
  *     @OA\RequestBody(
  *          @OA\MediaType(

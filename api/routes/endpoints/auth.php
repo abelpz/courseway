@@ -30,8 +30,8 @@ use CourseWay\Validation\Validator;
  *         )
  *     ),
  *     @OA\Response(response="201", description="Created"),
- *     @OA\Response(response="400–499",ref="#/components/responses/ClientError"),
- *     @OA\Response(response="500-599",ref="#/components/responses/ServerError"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 

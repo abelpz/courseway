@@ -50,18 +50,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *              type="integer"
  *          ),
  *     ),
- *     @OA\Response(
- *          response="200",
- *          description="Success",
- *     ),
- *     @OA\Response(
- *          response="401",
- *          description="Unauthorized",
- *          @OA\MediaType(
- *             mediaType="application/json",
- *             @OA\Schema(ref="#/components/schemas/Message"),
- *         )
- *     )
+ *     @OA\Response(response="201", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
