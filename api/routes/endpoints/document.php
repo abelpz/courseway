@@ -303,10 +303,6 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/documents',
 
 $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/document', function (Request $req, Response $res, $args) use ($endpoint) {
     $data = json_decode($req->getBody()->getContents(), true);
-    $token = $req->getAttribute("token");
-    $userId = $token['uid'];
-
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
 
     Validator::validate($req, array_merge($args, $data), new Assert\Collection([
         'fields' => [
@@ -333,7 +329,9 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/document',
     $course = api_get_course_info($args['course_code']);
     if (!$course)
         throwException($req, '404', "Course with code {$args['course_code']} not found.");
-
+    
+    $token = $req->getAttribute("token");
+    $userId = $token['uid'];
     $learningpath = new learnpath(
         $args['course_code'],
         $args['learningpath_id'],

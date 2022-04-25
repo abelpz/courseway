@@ -3,6 +3,9 @@
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
+use Symfony\Component\Validator\Constraints as Assert;
+use CourseWay\Validation\Validator;
+
 /**
  * @OA\Get(
  *     path="/course/{course_code}/learningpaths", tags={"Learning Paths"},
@@ -16,50 +19,35 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
- */ 
+ */
 
 $endpoint->get('/course/{course_code}/learningpaths', function (Request $req, Response $res, $args) use ($endpoint) {
 
-    $token = $req->getAttribute("token");
-   
-    if (empty($args['course_code'])) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'You are required to provide: course_code'));
-        return $res;
-    }
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+        ]
+    ]));
 
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
 
-    if ($user->isSuperAdmin()) {
+    $courseId = $course['real_id'];
+    $sessionId = 0;
 
-        $course = api_get_course_info($args['course_code']);
+    $learningpaths = learnpath::getLpList($courseId, $sessionId);
 
-        if (empty($course)) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Could not find course with course code: ' . $args['course_code']));
-            return $res;
-        }
-
-        $courseId = $course['real_id'];;
-        $sessionId = 0;
-
-        $learningpaths = learnpath::getLpList($courseId, $sessionId);
-        $res->withHeader("Content-Type", "application/json");
-        $res->getBody()->write(json_encode($learningpaths, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-    } else {
-        $res->withHeader("Content-Type", "application/json");
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
-    }
-
-    return $res;
+    $res->getBody()->write(json_encode($learningpaths, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return $res
+        ->withHeader("Content-Type", "application/json")
+        ->withStatus(200);
 });
 
 /**
@@ -78,12 +66,7 @@ $endpoint->get('/course/{course_code}/learningpaths', function (Request $req, Re
  *          @OA\MediaType(
  *             mediaType="application/json",
  *             @OA\Schema(
- *                 required={"name","user_id"},
- *                 @OA\Property(
- *                     property="user_id",
- *                     type="integer",
- *                     description="<small>Learning path creator id (this is for the logs).</small>"
- *                 ),
+ *                 required={"name"},
  *                 @OA\Property(
  *                     property="name",
  *                     type="string",
@@ -102,71 +85,206 @@ $endpoint->get('/course/{course_code}/learningpaths', function (Request $req, Re
  *             )
  *         )
  *     ),
- *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="201", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
 $endpoint->post('/course/{course_code}/learningpath', function (Request $req, Response $res, $args) use ($endpoint) {
     $data = json_decode($req->getBody()->getContents(), true);
+
+    Validator::validate($req, array_merge($data, $args), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'name' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'description' => new Assert\Optional([ new Assert\Type('string') ]),
+            'category_id' => new Assert\Optional([new Assert\Type('integer')]),
+        ],
+        'allowExtraFields' => true
+    ]));
+
+    $courseCode = $args['course_code'];
+    $course = api_get_course_info($courseCode);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$courseCode}` not found.");
+    
+    $name = $data['name'];
+    $description = $data['description'] ?: '';
+    $learnpath = 'guess';
+    $origin = '';
+    $zipname = '';
+    $publicated_on = api_get_utc_datetime();
+    $expired_on = '';
+    $categoryId = $data['category_id'] ?: 0;
+
     $token = $req->getAttribute("token");
+    $userId = $token['uid'] ?: 0;
 
-    if(empty($data['user_id']) or empty($data['name']) or empty($args['course_code'])){
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'You are required to provide: user_id, name, coursecode.'));
-        return $res;
+    if($categoryId !== 0){
+        $category = learnpath::getCategory($categoryId);
+        if(!$category)
+            throwException($req, '404', "Category with id {$categoryId} not found in DB.");
+    
+        if($category->getCId() !== $course['real_id'])
+            throwException($req, '422', "Category with id {$categoryId} not found in course.");
     }
 
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
+    $learningpathId = (int) learnpath::add_lp(
+        $courseCode,
+        $name,
+        $description,
+        $learnpath,
+        $origin,
+        $zipname,
+        $publicated_on,
+        $expired_on,
+        $categoryId,
+        $userId
+    );
 
-    if ($user->isSuperAdmin()) {
+    if (!$learningpathId)
+        throwException($req, '422', "Learning path could not be created.");
 
-        $courseCode = $args['course_code'];
-        $name = $data['name'];
-        $description = '';
-        $learnpath = 'guess';
-        $origin = '';
-        $zipname = '';
-        $publicated_on = api_get_utc_datetime();
-        $expired_on = '';
-        $categoryId = $data['category_id'] ?: 0;
-        $userId = $data['user_id'];
+    $lp_table = Database::get_course_table(TABLE_LP_MAIN);
+    $sql = "SELECT * FROM $lp_table WHERE iid = $learningpathId";
+    $result = Database::query($sql);
+    $learningpath = Database::store_result($result, 'ASSOC');
 
-        $learningpath = learnpath::add_lp(
-            $courseCode,
-            $name,
-            $description,
-            $learnpath,
-            $origin,
-            $zipname,
-            $publicated_on,
-            $expired_on,
-            $categoryId,
-            $userId
-        );
+    $res->getBody()->write(json_encode($learningpath, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return $res
+        ->withHeader("Content-Type", "application/json")
+        ->withStatus(201);
+});
 
-        if ($learningpath) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(200);
-            $res->getBody()
-                ->write(json_encode($learningpath, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-        } else {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Learningpath could not be created'));
-        }
-    } else {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(401);
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
-    }
+/**
+ * @OA\Get(
+ *     path="/course/{course_code}/learningpath/{learningpath_id}", tags={"Learning Paths"},
+ *     summary="Get a learning path from a course",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the learning is located.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique int identifier of the learning path that will be deleted.",
+ *          in="path",
+ *          name="learningpath_id",
+ *          required=true,
+ *          @OA\Schema(type="integer"),
+ *     ),
+ *     @OA\Response(response="204", description="No content."),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
 
-    return $res;
+$endpoint->get('/course/{course_code}/learningpath/{learningpath_id}', function (Request $req, Response $res, $args) use ($endpoint) {
+
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'learningpath_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ]),
+        ]
+    ]));
+
+    $courseCode = $args['course_code'];
+    $course = api_get_course_info($courseCode);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$courseCode}` not found.");
+
+    $lp_table = Database::get_course_table(TABLE_LP_MAIN);
+    $sql = "SELECT * FROM $lp_table WHERE iid = {$args['learningpath_id']} AND c_id = {$course['real_id']}";
+    $result = Database::query($sql);
+    $learningpath = Database::store_result($result, 'ASSOC');
+    if (!$learningpath)
+        throwException($req, '404', "Learning path not found in course.");
+
+    
+    $res->getBody()->write(json_encode($learningpath, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return $res
+            ->withHeader("Content-Type", "application/json")
+            ->withStatus(200);
+});
+
+/**
+ * @OA\Delete(
+ *     path="/course/{course_code}/learningpath/{learningpath_id}", tags={"Learning Paths"},
+ *     summary="Delete a learning path in a course",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the learning is located.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique int identifier of the learning path that will be deleted.",
+ *          in="path",
+ *          name="learningpath_id",
+ *          required=true,
+ *          @OA\Schema(type="integer"),
+ *     ),
+ *     @OA\Response(response="204", description="No content."),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->delete('/course/{course_code}/learningpath/{learningpath_id}', function (Request $req, Response $res, $args) use ($endpoint) {
+
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'learningpath_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ]),
+        ]
+    ]));
+
+    $courseCode = $args['course_code'];
+    $course = api_get_course_info($courseCode);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$courseCode}` not found.");
+
+    $lp_table = Database::get_course_table(TABLE_LP_MAIN);
+    $sql = "SELECT * FROM $lp_table WHERE iid = {$args['learningpath_id']} AND c_id = {$course['real_id']}";
+    $result = Database::query($sql);
+    $learningpath = Database::store_result($result, 'ASSOC');
+    if (!$learningpath)
+        throwException($req, '422', "Learning path not found in course.");
+    
+    $token = $req->getAttribute("token");
+    $userId = $token['uid'];
+    $learningpath = new learnpath(
+        $courseCode,
+        $args['learningpath_id'],
+        $userId
+    );
+    if($learningpath->delete($course) === false)
+        throwException($req, '422', "Learning path could not be deleted.");
+
+    return $res->withStatus(204);
 });
 
 /**
@@ -182,68 +300,45 @@ $endpoint->post('/course/{course_code}/learningpath', function (Request $req, Re
  *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
 $endpoint->get('/course/{course_code}/learningpaths/categories', function (Request $req, Response $res, $args) use ($endpoint) {
-    $data = json_decode($req->getBody()->getContents(), true);
     $token = $req->getAttribute("token");
 
-    if (empty($args['course_code'])) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'You are required to provide: course_id.'));
-        return $res;
-    }
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+        ]
+    ]));
 
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
-
-    if ($user->isSuperAdmin()) {
-
-        $course = api_get_course_info($args['course_code']);
+    $courseCode = $args['course_code'];
+    $course = api_get_course_info($courseCode);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$courseCode}` not found.");
         
-        if(empty($course)) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-            ->write(slim_msg('error', 'Could not find course with course code: '. $args['course_code']));
-            return $res;
-        }
+    $courseId = $course['real_id'];
 
-        $courseId = $course['real_id'];
-
-        $lpCategories = learnpath::getCategories($courseId);
-        if ($lpCategories) {
-            $categories = array();
-            foreach ($lpCategories as $category) {
-                array_push($categories, [
-                    'id' => $category->getId(),
-                    'name' => $category->getName(),
-                    'c_id' => $category->getCId(),
-                    'position' => $category->getPosition()
-                ]);
-            }
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(200);
-            $res->getBody()
-                ->write(json_encode($categories, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-        } else {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Could not get list of learningpaths.'));
-        }
-    } else {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(401);
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
+    $lpCategories = learnpath::getCategories($courseId);
+    $categories = [];
+    foreach ($lpCategories as $category) {
+        array_push($categories, [
+            'id' => $category->getId(),
+            'name' => $category->getName(),
+            'c_id' => $category->getCId(),
+            'position' => $category->getPosition()
+        ]);
     }
 
-    return $res;
+    $res->getBody()->write(json_encode($categories, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return $res
+            ->withHeader("Content-Type", "application/json")
+            ->withStatus(200);
 });
 
 /**
@@ -271,9 +366,9 @@ $endpoint->get('/course/{course_code}/learningpaths/categories', function (Reque
  *             )
  *         )
  *     ),
- *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="201", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
@@ -281,50 +376,39 @@ $endpoint->post('/course/{course_code}/learningpaths/category', function (Reques
     $data = json_decode($req->getBody()->getContents(), true);
     $token = $req->getAttribute("token");
 
-    if (empty($data['name']) or empty($args['course_code'])) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'You are required to provide: course_code, name.'));
-        return $res;
-    }
+    Validator::validate($req, array_merge($data, $args), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'name' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+        ],
+    ]));
 
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);    
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
 
-    if ($user->isSuperAdmin()) {
+    $data['c_id'] = $course['real_id'];
 
-        $course = api_get_course_info($args['course_code']);
+    $lpCategoryId = learnpath::createCategory($data);
+    if (!$lpCategoryId)
+        throwException($req, '422', "Learningpath Category could not be created.");
 
-        if (empty($course)) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Could not find course with course code: ' . $args['course_code']));
-            return $res;
-        }
+    $lp_table = Database::get_course_table(TABLE_LP_CATEGORY);
+    $sql = "SELECT * FROM $lp_table WHERE iid = {$lpCategoryId} AND c_id = {$data['c_id']}";
+    $result = Database::query($sql);
+    $lpCategory = Database::store_result($result, 'ASSOC');
 
-        $data['c_id'] = $course['real_id'];
-
-        $lpCategory = learnpath::createCategory($data);
-        if ($lpCategory) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(200);
-            $res->getBody()
-                ->write(json_encode($lpCategory, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-        } else {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Learningpath Category could not be created'));
-        }
-    } else {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(401);
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
-    }
-
-    return $res;
+    $res->getBody()->write(json_encode($lpCategory[0], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return $res
+            ->withHeader("Content-Type", "application/json")
+            ->withHeader("Location", COURSEWAY_API_URI . "/course/{$args['course_code']}/learningpaths/category/{$lpCategoryId}")
+            ->withStatus(201);
 });
 
 /**
@@ -347,54 +431,49 @@ $endpoint->post('/course/{course_code}/learningpaths/category', function (Reques
  *          @OA\Schema(type="integer"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
 $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/sections', function (Request $req, Response $res, $args) use ($endpoint) {
-    $data = json_decode($req->getBody()->getContents(), true);
+    
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'learningpath_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ]),
+        ]
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
+    
     $token = $req->getAttribute("token");
     $userId = $token['uid'];
+    $learningpath = new learnpath(
+        $args['course_code'],
+        $args['learningpath_id'],
+        $userId
+    );
 
-    if (empty($args['course_code']) or empty($args['learningpath_id'])) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-        ->write(slim_msg('error', 'You are required to provide: course_code, learningpath_id.'));
-        return $res;
-    }
+    if (!$learningpath->name)
+        throwException($req, '404', "Learning path with id {$args['learningpath_id']} not found.");
 
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
-    
-    if ($user->isSuperAdmin()) {
-        
-        $learningpath = new learnpath(
-            $args['course_code'],
-            $args['learningpath_id'],
-            $userId
-        );
+    $lpSections = $learningpath->items;
 
-        $lpSections = $learningpath->items;
-        if ($lpSections) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(200);
-            $res->getBody()
-                ->write(json_encode($lpSections, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-        } else {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Could not get list of learningpaths.'));
-        }
-    } else {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(401);
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
-    }
+    $res->getBody()
+        ->write(json_encode($lpSections, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
 
-    return $res;
+    return
+        $res->withHeader("Content-Type", "application/json")
+            ->withStatus(200);
 });
 
 /**
@@ -439,73 +518,78 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/sections', 
  *             )
  *         )
  *     ),
- *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="201", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
 $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/section', function (Request $req, Response $res, $args) use ($endpoint) {
     $data = json_decode($req->getBody()->getContents(), true);
+    
+    
+    Validator::validate($req, array_merge($args,$data), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'learningpath_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ]),
+            'title' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'parent_id' => new Assert\Optional([ new Assert\Type('integer') ]),
+            'previous_id' => new Assert\Optional([ new Assert\Type('integer') ]),
+        ]
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
+        
     $token = $req->getAttribute("token");
     $userId = $token['uid'];
-
-    if (empty($args['course_code']) or empty($args['learningpath_id'])) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'You are required to provide: course_code, learningpath_id.'));
-        return $res;
-    }
+    $learningpath = new learnpath(
+        $args['course_code'],
+        $args['learningpath_id'],
+        $userId
+    );
+    if (!$learningpath->name)
+        throwException($req, '404', "Learning path with id {$args['learningpath_id']} not found.");
     
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
+    $parent = $data['parent_id'] ?: 0;
+    $previous = $data['previous_id'] ?: array_key_last($learningpath->items);
+    $type = 'dir';
+    $id = 0;
+    $title = $data['title'];
+    $description = '';
+    $prerequisites = 0;
+    $max_time_allowed = 0;
 
-    if ($user->isSuperAdmin()) {
+    $lpSection = $learningpath->add_item(
+        $parent,
+        $previous,
+        $type,
+        $id,
+        $title,
+        $description,
+        $prerequisites,
+        $max_time_allowed,
+        $userId
+    );
+    if (!$lpSection)
+        throwException($req, '422', "Learningpath section could not be created.");
 
-        $learningpath = new learnpath(
-            $args['course_code'],
-            $args['learningpath_id'],
-            $userId
-        );
+    $res->getBody()
+        ->write(json_encode($lpSection, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
 
-        $parent = $data['parent_id'] ?: 0;
-        $previous = $data['previous_id'] ?: array_key_last($learningpath->items);
-        $type = 'dir';
-        $id = 0;
-        $title = $data['title'];
-        $description = '';
-        $prerequisites = 0;
-        $max_time_allowed = 0;
-
-        $lpSection = $learningpath->add_item(
-            $parent,
-            $previous,
-            $type,
-            $id,
-            $title,
-            $description,
-            $prerequisites,
-            $max_time_allowed,
-            $userId
-        );
-        if ($lpSection) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(200);
-            $res->getBody()
-                ->write(json_encode($lpSection, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-        } else {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Learningpath Category could not be created'));
-        }
-    } else {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(401);
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
-    }
-
-    return $res;
+    return
+        $res
+            ->withHeader("Content-Type", "application/json")
+            ->withStatus(201);
 });
 

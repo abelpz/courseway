@@ -22,6 +22,7 @@ $uri = explode('courseway', $_SERVER['REQUEST_URI']);
 
 define('BASE_PATH', __DIR__);
 define('BASE_URI', $uri[0] . 'courseway');
+define('COURSEWAY_API_URI', api_get_configuration_value('root_web') . "plugin/courseway/api/v1");
 
 require 'inc/middlewares.php';
 
@@ -43,7 +44,10 @@ $app->add(new JwtAuthentication([
     "secret" => $_ENV["JWT_SECRET"],
     "secure" => false,
     "error" => function ($response, $arguments) {
-        $response->withHeader("Content-Type", "application/json");
-        return $response->getBody()->write(slim_msg('error', $arguments['message']));
+        $response->getBody()
+            ->write(slim_msg('error', $arguments['message']));
+        return $response
+            ->withHeader("Content-Type", "application/json")
+            ->withStatus(403);
     },
 ]));
