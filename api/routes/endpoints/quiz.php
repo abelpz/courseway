@@ -19,55 +19,33 @@ use CourseWay\Validation\Validator;
  *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
 $endpoint->get('/course/{course_code}/tests', function (Request $req, Response $res, $args) use ($endpoint) {
-    $params = $req->getQueryParams();
 
-    $token = $req->getAttribute("token");
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+        ]
+    ]));
 
-    if (empty($args['course_code'])) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'You are required to provide: course_code'));
-        return $res;
-    }
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
 
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
+    $quizList = getExercises($course);
 
-    if ($user->isSuperAdmin()) {
-
-        $course = api_get_course_info($args['course_code']);
-
-        if (empty($course)) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Could not find course with course code: ' . $args['course_code']));
-            return $res;
-        }
-
-        $quizList = getExercises($course);
-
-        if(!empty($quizList)){
-            $res->withHeader("Content-Type", "application/json");
-            $res->getBody()->write(json_encode($quizList, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-        } else {
-            $res->withHeader("Content-Type", "application/json");
-            $res->getBody()
-                ->write(slim_msg('error', 'Quizzes could not be listed'));
-        }
-    } else {
-        $res->withHeader("Content-Type", "application/json");
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
-    }
-
-    return $res;
+    $res->getBody()
+        ->write(json_encode($quizList, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return $res
+        ->withHeader("Content-Type", "application/json")
+        ->withStatus(200);
 });
 
 
@@ -295,9 +273,9 @@ $endpoint->get('/course/{course_code}/tests', function (Request $req, Response $
  *             )
  *         )
  *     ),
- *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="201", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
@@ -305,59 +283,110 @@ $endpoint->get('/course/{course_code}/tests', function (Request $req, Response $
 
 $endpoint->post('/course/{course_code}/test', function (Request $req, Response $res, $args) use ($endpoint) {
     $data = json_decode($req->getBody()->getContents(), true);
-    $token = $req->getAttribute("token");
-    if (empty($args['course_code']) or empty($data['title'])) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'You are required to provide: course_code, title'));
-        return $res;
+
+    Validator::validate($req, array_merge($data, $args), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'title' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'description' => new Assert\Optional([new Assert\Type('string')]),
+            'type' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'feedback_type' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'attempts' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'random' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'random_answers' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'results_disabled' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'expired_time' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'propagate_neg' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'saveCorrectAnswers' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'randomByCat' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'text_when_finished' => new Assert\Optional([new Assert\Type('string')]),
+            'display_category_name' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'review_answers' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'pass_percentage' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'categories' => new Assert\Optional([
+                new Assert\Type('array'),
+                new Assert\All([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            ]),
+            'onSuccessMessage' => new Assert\Optional([new Assert\Type('string')]),
+            'onFailedMessage' => new Assert\Optional([new Assert\Type('string')]),
+            'emailNotificationTemplate' => new Assert\Optional([new Assert\Type('string')]),
+            'emailNotificationTemplateToUser' => new Assert\Optional([new Assert\Type('string')]),
+            'notifyUserByEmail' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'modelType' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'questionSelectionType' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'hideQuestionTitle' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'scoreTypeModel' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'globalCategoryId' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'showPreviousButton' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'exerciseCategoryId' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'hideQuestionNumber' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'preventBackwards' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'activate_start_date_check' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'start_time' => new Assert\Optional([new Assert\Type('string')]),
+            'activate_end_date_check' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'end_time' => new Assert\Optional([new Assert\Type('string')]),
+            'enabletimercontrol' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'expired_time' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+
+        ],
+        'allowExtraFields' => true
+    ]));
+
+    if(in_array($data['feedback_type'], [0,1,3])){
+        Validator::validate($req, $data, new Assert\Collection([
+            'fields' => [
+                'results_disabled' => new Assert\Optional([new Assert\Choice([0,4,6,7,8,9,10])])
+            ],
+            'allowExtraFields' => true
+        ]));
+        $data['results_disabled'] = $data['results_disabled'] ?: 0;
     }
 
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
 
-    if ($user->isSuperAdmin()) {
-
-        $course = api_get_course_info($args['course_code']);
-
-        if (empty($course)) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Could not find course with course code: ' . $args['course_code']));
-            return $res;
-        }
-
-        $courseId = $course['real_id'];
-
-        $exerciseId = createExercise($courseId, $data, null, '');
-        //$exercise = new Exercise($courseId);
-
-        //Set exercise properties
-        // $exercise->exercise = $data['title'];
-        // $exercise->description = $data['description'] ?: '';
-
-        // $exerciseId = $exercise->save();
-
-        if ($exerciseId) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(200);
-            $res->getBody()
-                ->write(json_encode($exerciseId, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-        } else {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Category could not be created'));
-        }
-    } else {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(401);
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
+    if($data['feedback_type'] === 1){
+        Validator::validate($req, $data, new Assert\Collection([
+            'fields' => [
+                'type' => new Assert\Optional([new Assert\IdenticalTo([
+                    'value' => 2,
+                    'message' => 'If `feedback_type` is set to 1, `type` should be set to 2.'
+                ])])
+            ],
+            'allowExtraFields' => true
+        ]));
+        $data['type'] = $data['type'] ?: 2;
     }
+    
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
 
-    return $res;
+    $courseId = $course['real_id'];
+
+    $exerciseId = createExercise($courseId, $data, null, '');
+    
+    //Set exercise properties
+    // $exercise->exercise = $data['title'];
+    // $exercise->description = $data['description'] ?: '';
+    
+    // $exerciseId = $exercise->save();
+    
+    if (!$exerciseId)
+        throwException($req, '422', 'Test could not be created.');
+
+    $excercise = getExercise($course, $exerciseId);
+    
+    $res->getBody()
+        ->write(json_encode($excercise[0], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    return $res
+        ->withHeader("Content-Type", "application/json")
+        ->withStatus(201);
 });
 
 
@@ -602,9 +631,9 @@ $endpoint->post('/course/{course_code}/test', function (Request $req, Response $
  *             )
  *         )
  *     ),
- *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="201", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
@@ -612,67 +641,119 @@ $endpoint->post('/course/{course_code}/test', function (Request $req, Response $
 
 $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/test', function (Request $req, Response $res, $args) use ($endpoint) {
     $data = json_decode($req->getBody()->getContents(), true);
+
+    Validator::validate($req, array_merge($data, $args), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'title' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'description' => new Assert\Optional([new Assert\Type('string')]),
+            'type' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'feedback_type' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'attempts' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'random' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'random_answers' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'results_disabled' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'expired_time' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'propagate_neg' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'saveCorrectAnswers' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'randomByCat' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'text_when_finished' => new Assert\Optional([new Assert\Type('string')]),
+            'display_category_name' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'review_answers' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'pass_percentage' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'categories' => new Assert\Optional([
+                new Assert\Type('array'),
+                new Assert\All([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            ]),
+            'onSuccessMessage' => new Assert\Optional([new Assert\Type('string')]),
+            'onFailedMessage' => new Assert\Optional([new Assert\Type('string')]),
+            'emailNotificationTemplate' => new Assert\Optional([new Assert\Type('string')]),
+            'emailNotificationTemplateToUser' => new Assert\Optional([new Assert\Type('string')]),
+            'notifyUserByEmail' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'modelType' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'questionSelectionType' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'hideQuestionTitle' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'scoreTypeModel' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'globalCategoryId' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'showPreviousButton' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'exerciseCategoryId' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'hideQuestionNumber' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'preventBackwards' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'activate_start_date_check' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'start_time' => new Assert\Optional([new Assert\Type('string')]),
+            'activate_end_date_check' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'end_time' => new Assert\Optional([new Assert\Type('string')]),
+            'enabletimercontrol' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'expired_time' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+
+        ],
+        'allowExtraFields' => true
+    ]));
+
+    if (in_array($data['feedback_type'], [0, 1, 3])) {
+        Validator::validate($req, $data, new Assert\Collection([
+            'fields' => [
+                'results_disabled' => new Assert\Optional([new Assert\Choice([0, 4, 6, 7, 8, 9, 10])])
+            ],
+            'allowExtraFields' => true
+        ]));
+        $data['results_disabled'] = $data['results_disabled'] ?: 0;
+    }
+
+
+    if ($data['feedback_type'] === 1) {
+        Validator::validate($req, $data, new Assert\Collection([
+            'fields' => [
+                'type' => new Assert\Optional([new Assert\IdenticalTo([
+                    'value' => 2,
+                    'message' => 'If `feedback_type` is set to 1, `type` should be set to 2.'
+                ])])
+            ],
+            'allowExtraFields' => true
+        ]));
+        $data['type'] = $data['type'] ?: 2;
+    }
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
+
+    $courseId = $course['real_id'];
     $token = $req->getAttribute("token");
+    $userId = $data['user_id'] ?: $token['uid'];
+    $lp = new learnpath($args['course_code'], $args['learningpath_id'], $userId);
 
-    if (empty($args['course_code']) or empty($data['title'])) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'You are required to provide: course_code, title'));
-        return $res;
-    }
+    if (!$lp->name)
+        throwException($req, '404', "Learning path with id {$args['learningpath_id']} not found.");
 
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
+    $exerciseId = createExercise($courseId, $data, null, '');
+    if (!$exerciseId)
+        throwException($req, '422', 'Test could not be created.');
 
-    if ($user->isSuperAdmin()) {
+    $itemId = $lp->add_item(
+        $data['parent_id'] ?: 0,
+        $data['previous_id'] ?: $lp->getLastInFirstLevel(),
+        'quiz',
+        $exerciseId,
+        $data['title'],
+        $data['description'],
+    );
+    if (!$itemId)
+        throwException($req, '422', "Exercise created with id: $exerciseId, but coldn't be added to learning path.");
 
-        $course = api_get_course_info($args['course_code']);
+    $excercise = getExercise($course, $exerciseId);
+    $res->getBody()
+        ->write(json_encode($excercise[0], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
 
-        if (empty($course)) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Could not find course with course code: ' . $args['course_code']));
-            return $res;
-        }
-
-        $courseId = $course['real_id'];
-        $lp = new learnpath($args['course_code'], $args['learningpath_id'], $user->getId());
-        if ($lp->lp_id) {
-            $exerciseId = createExercise($courseId, $data, null, '');
-            $itemId = $lp->add_item(
-                $data['parent_id'] ?: 0,
-                $data['previous_id'] ?: $lp->getLastInFirstLevel(),
-                'quiz',
-                $exerciseId,
-                $data['title'],
-                $data['description'],
-            );
-        }
-        if ($itemId) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(200);
-            $res->getBody()
-                ->write(json_encode($exerciseId, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-        } else {
-            
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            if ($exerciseId)
-                $res->getBody()
-                    ->write(slim_msg('error', "Exercise created with id: $exerciseId, but coldn't be added to learning path"));
-            else
-                $res->getBody()
-                    ->write(slim_msg('error', 'Test could not be created'));
-        }
-    } else {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(401);
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
-    }
-
-    return $res;
+    return $res
+        ->withHeader("Content-Type", "application/json")
+        ->withStatus(201);
 });
 
 /**
@@ -695,8 +776,8 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/test', fun
  *          @OA\Schema(type="integer"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
@@ -704,65 +785,42 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/test', fun
 // [[TO DO: create get functionality]]
 
 $endpoint->get('/course/{course_code}/test/{test_id}/questions', function (Request $req, Response $res, $args) use ($endpoint) {
-    $params = $req->getQueryParams();
 
-    $token = $req->getAttribute("token");
+    //Validate params
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'test_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ]),
+        ]
+    ]));
 
-    if (empty($args['course_code']) or empty($args['test_id'])) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'You are required to provide: course_code, test_id'));
-        return $res;
-    }
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
 
-    if ($user->isSuperAdmin()) {
+    $courseId = $course['real_id'];
+    $exercise = new Exercise($courseId);
+    if(!$exercise->read($args['test_id']))
+        throwException($req, '404', "Exercise with id `{$args['test_id']}` not found.");
 
-        $course = api_get_course_info($args['course_code']);
-
-        if (empty($course)) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Could not find course with course code: ' . $args['course_code']));
-            return $res;
-        }
-
-        $courseId = $course['real_id'];
-
-        $exercise = new Exercise($courseId);
-
-        if (!$exercise->read($args['test_id'])) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', "Couldn't find exercise with id = " . $args['test_id']));
-        }
-
-        $questionsIds = $exercise->getQuestionOrderedList();
-        $questions = [];
-        foreach ($questionsIds as $key => $questionId) {
-            $questions[] = get_object_vars(Question::read($questionId, $course));
-            //$questions[$key] = get_class_vars(get_class(Question::read($questionId, $course)));
-        }
-
-        if (!$questions) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', "Couldn't find any questions in test."));
-        } else {
-            $res->withHeader("Content-Type", "application/json");
-            $res->getBody()->write(json_encode($questions, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-        }
-    } else {
-        $res->withHeader("Content-Type", "application/json");
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
+    $questionsIds = $exercise->getQuestionOrderedList();
+    $questions = [];
+    foreach ($questionsIds as $key => $questionId) {
+        $questions[] = get_object_vars(Question::read($questionId, $course));
+        //$questions[$key] = get_class_vars(get_class(Question::read($questionId, $course)));
     }
 
-    return $res;
+    $res->getBody()->write(json_encode($questions, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    return
+        $res->withHeader("Content-Type", "application/json")
+        ->withStatus(200);
 });
 
 /**
@@ -859,7 +917,7 @@ $endpoint->get('/course/{course_code}/test/{test_id}/questions', function (Reque
  *             )
  *         )
  *     ),
- *     @OA\Response(response="200", description="Success"),
+ *     @OA\Response(response="201", description="Created"),
  *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
  *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
@@ -918,18 +976,18 @@ $endpoint->post('/course/{course_code}/test/{test_id}/question', function (Reque
             ]),
             'type' => new Assert\Required([
                 new Assert\NotBlank(),
-                new Assert\Type('integer'),
+                new Assert\Type('integer'), new Assert\PositiveOrZero(),
                 new Assert\Range([
                     'min' => 1,
                     'max' => 22,
                 ])
             ]),
             'description' => new Assert\Optional([new Assert\Type('string')]),
-            'ponderation' => new Assert\Optional([new Assert\Type('integer')]),
+            'ponderation' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
             'picture' => new Assert\Optional([new Assert\Type('string')]),
-            'level' => new Assert\Optional([new Assert\Type('integer')]),
+            'level' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
             'extra' => new Assert\Optional([new Assert\Type('string')]),
-            'category' => new Assert\Optional([new Assert\Type('integer')]),
+            'category' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
             'feedback' => new Assert\Optional([new Assert\Type('string')]),
         ]
     ]));
@@ -959,11 +1017,12 @@ $endpoint->post('/course/{course_code}/test/{test_id}/question', function (Reque
     if (!$question->iid)
         throwException($req, '422', "Question could not be created");
 
-    $res->withHeader("Content-Type", "application/json");
-    $res->withStatus(200);
+
     $res->getBody()
         ->write(json_encode($question, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-    return $res;
+    return
+        $res->withHeader("Content-Type", "application/json")
+            ->withStatus(200);
 });
 
 /**
@@ -999,73 +1058,56 @@ $endpoint->post('/course/{course_code}/test/{test_id}/question', function (Reque
  *              )
  *         ),
  *     ),
- *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="201", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
 $endpoint->post('/course/{course_code}/question/{question_id}/image', function (Request $req, Response $res, $args) use ($endpoint) {
+    $uploadedFiles = $req->getUploadedFiles() ? $_FILES : [];
 
-    $res->withHeader("Content-Type", "application/json");
+    Validator::validate($req, array_merge($args, $uploadedFiles), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'question_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ]),
+            'imageUpload' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('array'),
+                new Assert\All([
+                    new Assert\NotBlank()
+                ]),
+            ]),
+        ]
+    ]));
 
-    $data = $req->getParsedBody();
-    $token = $req->getAttribute("token");
-    $userId = $token['uid'];
-
-    $uploadedFiles = $req->getUploadedFiles() ? $_FILES : null;
-    if(!$uploadedFiles) {
-        $res->withStatus(401);
-        $res->getBody()
-            ->write(slim_msg('error', 'You must provide a valid file.'));
-        return $res;
-    }
-
-    if (empty($args['course_code']) or empty($args['question_id'])) {
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'You are required to provide: course_code, test_id, question_id'));
-        return $res;
-    }
-
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
-    if (!$user->isSuperAdmin()) {
-        $res->withStatus(401);
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
-        return $res;
-    }
 
     $course = api_get_course_info($args['course_code']);
-    if (empty($course)) {
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'Could not find course with course code: ' . $args['course_code']));
-        return $res;
-    }
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
 
     $question = Question::read($args['question_id'], $course, false);
-    if (!$question) {
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', "Couldn't find question with id = " . $args['question_id']));
-        return $res;
-    }
+    if (!$question)
+        throwException($req, "404", "Could not find question with id = {$args['question_id']}");
 
     $uploaded = $question->uploadPicture($uploadedFiles['imageUpload']['tmp_name']);
     $question->save(new Exercise());
 
-    if ($question->iid && $uploaded) {
-        $res->withStatus(200);
-        $res->getBody()
-            ->write(json_encode($question, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-    } else {
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'Question could not be created'));
-    }
+    if (!$uploaded)
+        throwException($req, '422', "Image coud not be uploaded.");
 
-    return $res;
+    $res->getBody()
+        ->write(json_encode($question, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    return
+        $res->withHeader("Content-Type", "application/json")
+            ->withStatus(201);
 });
 
 /**
@@ -1095,9 +1137,9 @@ $endpoint->post('/course/{course_code}/question/{question_id}/image', function (
  *          required=true,
  *          @OA\Schema(type="string"),
  *     ),
- *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="204", description="Success"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
@@ -1131,10 +1173,7 @@ $endpoint->delete('/course/{course_code}/test/{test_id}/question/{question_id}',
     if(!$deleted)
         throwException($req, '0', "Couldn't delete question.");
 
-    $res->withStatus(200);
-    $res->getBody()
-        ->write("Question {$args['question_id']} was deleted");
-    return $res;
+    return $res->withStatus(204);
 });
 
 /**
@@ -1157,15 +1196,14 @@ $endpoint->delete('/course/{course_code}/test/{test_id}/question/{question_id}',
  *          required=true,
  *          @OA\Schema(type="string"),
  *     ),
- *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="204", description="Success"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
 
 $endpoint->delete('/course/{course_code}/question/{question_id}', function (Request $req, Response $res, $args) use ($endpoint) {
-    $res->withHeader("Content-Type", "application/json");
 
     Validator::validate($req, $args, new Assert\Collection([
         'fields' => [
@@ -1178,8 +1216,6 @@ $endpoint->delete('/course/{course_code}/question/{question_id}', function (Requ
     if (empty($course))
         throwException($req, '404', "Could not find course with course code = {$args['course_code']}");
 
-    $courseId = $course['real_id'];
-
     $question = Question::read((int) $args['question_id'], $course, false);
     if (!$question)
         throwException($req, "404", "Could not find question with id = {$args['question_id']}");
@@ -1189,10 +1225,7 @@ $endpoint->delete('/course/{course_code}/question/{question_id}', function (Requ
     if (!$deleted)
         throwException($req, '0', "Couldn't delete question.");
 
-    $res->withStatus(200);
-    $res->getBody()
-        ->write("Question {$args['question_id']} was deleted");
-    return $res;
+    return $res->withStatus(200);
 });
 
 /**
@@ -1222,8 +1255,8 @@ $endpoint->delete('/course/{course_code}/question/{question_id}', function (Requ
  *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
@@ -1231,75 +1264,39 @@ $endpoint->delete('/course/{course_code}/question/{question_id}', function (Requ
 // [[TO DO: create get functionality]]
 
 $endpoint->get('/course/{course_code}/test/{test_id}/question/{question_id}/answers', function (Request $req, Response $res, $args) use ($endpoint) {
-    $data = json_decode($req->getBody()->getContents(), true);
-    $token = $req->getAttribute("token");
 
-    if (empty($args['course_code']) or empty($args['test_id']) or empty($args['question_id'])) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'You are required to provide: course_code, test_id, question_id'));
-        return $res;
-    }
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Type('string'),
+            'test_id' => new Assert\Type('numeric'),
+            'question_id' => new Assert\Type('numeric'),
+        ]
+    ]));
 
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
 
-    if ($user->isSuperAdmin()) {
+    $courseId = $course['real_id'];
+    $exercise = new Exercise($courseId);
+    if (!$exercise->read($args['test_id']))
+        throwException($req, '404', "Could not find exercise with id =  {$args['test_id']}");
 
-        $course = api_get_course_info($args['course_code']);
+    $question = Question::read($args['question_id'], $course, false);
+    if (!$question)
+        throwException($req, '404', "Could not find question with id =  {$args['question_id']}");
 
-        if (empty($course)) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Could not find course with course code: ' . $args['course_code']));
-            return $res;
-        }
+    $answer = new Answer(
+        $args['question_id'],
+        $courseId,
+        $exercise
+    );
+    $answers = $answer->getAnswers();
 
-        $courseId = $course['real_id'];
-
-        $exercise = new Exercise($courseId);
-
-        if (!$exercise->read($args['test_id'])) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', "Couldn't find exercise with id = " . $args['test_id']));
-            return $res;
-        }
-
-        $question = Question::read($args['question_id'], $course, false);
-        if (!$question) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', "Couldn't find question with id = " . $args['question_id']));
-            return $res;
-        }
-
-        $answer = new Answer(
-            $args['question_id'],
-            $courseId,
-            $exercise
-        );
-        $answers = $answer->getAnswers();
-
-        if (!$answers) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', "Couldn't find any questions in test."));
-        } else {
-            $res->withHeader("Content-Type", "application/json");
-            $res->getBody()->write(json_encode($answers, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-        }
-    } else {
-        $res->withHeader("Content-Type", "application/json");
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
-    }
-
-    return $res;
+    $res->getBody()->write(json_encode($answers, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return
+        $res->withHeader("Content-Type", "application/json")
+        ->withStatus(200);
 });
 
 /**
@@ -1377,9 +1374,9 @@ $endpoint->get('/course/{course_code}/test/{test_id}/question/{question_id}/answ
  *             )
  *         )
  *     ),
- *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="201", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
@@ -1389,97 +1386,87 @@ $endpoint->post('/course/{course_code}/test/{test_id}/question/{question_id}/ans
     $data = json_decode($req->getBody()->getContents(), true);
     $token = $req->getAttribute("token");
 
-    if (empty($args['course_code']) or empty($data['title']) or empty($args['test_id']) or empty($args['question_id'])) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'You are required to provide: course_code, test_id, question_id, title'));
-        return $res;
-    }
+    Validator::validate($req, array_merge($args, $data), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'test_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ]),
+            'question_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ]),
+            'title' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'correct' => new Assert\Optional([ new Assert\Type('integer') ]),
+            'ponderation' => new Assert\Optional([new Assert\Type('integer')]),
+            'comment' => new Assert\Optional([new Assert\Type('string')]),
+            'position' => new Assert\Optional([new Assert\Type('integer')]),
+            'hotspot_coordinates' => new Assert\Optional([new Assert\Type('string')]),
+            'hotspot_type' => new Assert\Optional([
+                new Assert\Type('string'),
+                new Assert\Choice(['square', 'circle', 'poly']),
+            ]),
+            'destination' => new Assert\Optional([new Assert\Type('string')]),
+        ]
+    ]));
 
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
 
-    if ($user->isSuperAdmin()) {
+    $courseId = $course['real_id'];
+    $exercise = new Exercise($courseId);
+    if (!$exercise->read($args['test_id']))
+        throwException($req, '404', "Could not find exercise with id =  {$args['test_id']}");
 
-        $course = api_get_course_info($args['course_code']);
+    $question = Question::read($args['question_id'], $course, false);
+    if (!$question)
+        throwException($req, '404', "Could not find question with id =  {$args['question_id']}");
 
-        if (empty($course)) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Could not find course with course code: ' . $args['course_code']));
-            return $res;
-        }
-
-        $courseId = $course['real_id'];
-
-        $exercise = new Exercise($courseId);
-
-        if (!$exercise->read($args['test_id'])) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', "Couldn't find exercise with id = " . $args['test_id']));
-            return $res;
-        }
-
-        $question = Question::read($args['question_id'], $course, false);
-        if (!$question) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', "Couldn't find question with id = " . $args['question_id']));
-            return $res;
-        }
-
-        $answer = new Answer(
-            $args['question_id'],
-            $courseId,
-            $exercise
-        );
-        $oldAnswers = $answer->getAnswers();
-        $answersCount = $answer->selectNbrAnswers();
-        for ($i=0; $i < $answersCount; $i++) {
-            $answer->createAnswer(
-                $oldAnswers[$i]['answer'],
-                $oldAnswers[$i]['correct'],
-                $oldAnswers[$i]['comment'],
-                $oldAnswers[$i]['ponderation'],
-                $oldAnswers[$i]['position'],
-                $oldAnswers[$i]['hotspot_coordinates'],
-                $oldAnswers[$i]['hotspot_type'],
-                $oldAnswers[$i]['destination']
-            );
-        }
+    $answer = new Answer(
+        $args['question_id'],
+        $courseId,
+        $exercise
+    );
+    $oldAnswers = $answer->getAnswers();
+    $answersCount = $answer->selectNbrAnswers();
+    for ($i=0; $i < $answersCount; $i++) {
         $answer->createAnswer(
-            $data['title'],
-            $data['correct'] ?: 0,
-            $data['comment'],
-            $data['ponderation'],
-            $data['position'] ?: max($answer->position) + 1,
-            $data['hotspot_coordinates'] ?: null,
-            $data['hotspot_type'] ?: null,
-            $data['destination'] ?: ($exercise->selectType() === 1 ? '0@@0@@0@@0' : '') //TODO: Add suport for "Scenario" question types (https://docs.chamilo.org/teacher-guide/interactivity_tests/creating_a_new_test)
+            $oldAnswers[$i]['answer'],
+            $oldAnswers[$i]['correct'],
+            $oldAnswers[$i]['comment'],
+            $oldAnswers[$i]['ponderation'],
+            $oldAnswers[$i]['position'],
+            $oldAnswers[$i]['hotspot_coordinates'],
+            $oldAnswers[$i]['hotspot_type'],
+            $oldAnswers[$i]['destination']
         );
-        $answer->save();
-
-        if ($answersCount < $answer->getAnswers()) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(200);
-            $res->getBody()
-                ->write(json_encode($answer->getAnswers(), JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-        } else {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Answer could not be created'));
-        }
-    } else {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(401);
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
     }
+    $answer->createAnswer(
+        $data['title'],
+        $data['correct'] ?: 0,
+        $data['comment'],
+        $data['ponderation'],
+        $data['position'] ?: max($answer->position) + 1,
+        $data['hotspot_coordinates'] ?: null,
+        $data['hotspot_type'] ?: null,
+        $data['destination'] ?: ($exercise->selectType() === 1 ? '0@@0@@0@@0' : '') //TODO: Add suport for "Scenario" question types (https://docs.chamilo.org/teacher-guide/interactivity_tests/creating_a_new_test)
+    );
+    $answer->save();
 
-    return $res;
+    if ($answersCount >= $answer->getAnswers())
+        throwException($req, '422', "Answer could not be created.");
+
+    $res->getBody()
+        ->write(json_encode($answer->getAnswers(), JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return
+        $res->withHeader("Content-Type", "application/json")
+        ->withStatus(201);
 });

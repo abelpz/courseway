@@ -105,7 +105,7 @@ $endpoint->post('/course/{course_code}/learningpath', function (Request $req, Re
                 new Assert\Type('string')
             ]),
             'description' => new Assert\Optional([ new Assert\Type('string') ]),
-            'category_id' => new Assert\Optional([new Assert\Type('integer')]),
+            'category_id' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
         ],
         'allowExtraFields' => true
     ]));
@@ -542,8 +542,8 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/section', 
                 new Assert\NotBlank(),
                 new Assert\Type('string')
             ]),
-            'parent_id' => new Assert\Optional([ new Assert\Type('integer') ]),
-            'previous_id' => new Assert\Optional([ new Assert\Type('integer') ]),
+            'parent_id' => new Assert\Optional([ new Assert\Type('integer'), new Assert\PositiveOrZero() ]),
+            'previous_id' => new Assert\Optional([ new Assert\Type('integer'), new Assert\PositiveOrZero() ]),
         ]
     ]));
 

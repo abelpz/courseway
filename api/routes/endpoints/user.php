@@ -58,23 +58,18 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 $endpoint->get('/users', function (Request $req, Response $res, $args) use ($endpoint) {
     $params = $req->getQueryParams();
-    $token = $req->getAttribute("token");
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
 
-    if ($user->isSuperAdmin()) {
-
-        $users = UserManager::get_user_list($params);
-        foreach ($users as $key => $user) {
-            $users_info[$key] = array_filter($user, function ($user_field) {
-                return in_array($user_field, ["user_id", "username", "firstname", "lastname", "email"]) && $user_field != NULL;
-            }, ARRAY_FILTER_USE_KEY);
-        }
-        $res->withHeader("Content-Type", "application/json");
-        $res->getBody()->write(json_encode($users_info, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-    } else {
-        $res->withHeader("Content-Type", "application/json");
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
+    $users = UserManager::get_user_list($params);
+    $users_info = [];
+    foreach ($users as $key => $user) {
+        $users_info[$key] = array_filter($user, function ($user_field) {
+            return in_array($user_field, ["user_id", "username", "firstname", "lastname", "email"]) && $user_field != NULL;
+        }, ARRAY_FILTER_USE_KEY);
     }
-    return $res;
+
+    $res->getBody()->write(json_encode($users_info, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    return $res
+        ->withHeader("Content-Type", "application/json")
+        ->withStatus(200);
 });

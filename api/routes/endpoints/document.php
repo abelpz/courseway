@@ -53,10 +53,11 @@ $endpoint->get('/course/{course_code}/documents', function (Request $req, Respon
 
     $documents = DocumentManager::getAllDocumentData($course, $path);
 
-    $res->withStatus(200);
-    $res->withHeader("Content-Type", "application/json");
-    $res->getBody()->write(json_encode($documents, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-    return $res;
+    $res->getBody()
+        ->write(json_encode($documents, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return
+        $res->withHeader("Content-Type", "application/json")
+            ->withStatus(200);
 });
 
 /**
@@ -145,10 +146,12 @@ $endpoint->post('/course/{course_code}/documents/image', function (Request $req,
     if (!$result)
         throwException($req, '422', "Image coud not be uploaded.");
 
-    $res->withHeader("Content-Type", "application/json");
-    $res->withStatus(201);
-    $res->getBody()->write(json_encode($result, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-    return $res;
+    $res->getBody()
+        ->write(json_encode($result, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    
+    return
+        $res->withHeader("Content-Type", "application/json")
+        ->withStatus(201);
 });
 
 /**
@@ -232,10 +235,11 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/documents',
     if(!$documents)
         throwException($req, '422', "No documents found in learning path with id {$args['learningpath_id']}.");
 
-    $res->withHeader("Content-Type", "application/json");
-    $res->withStatus(200);
-    $res->getBody()->write(json_encode($documents, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-    return $res;
+    $res->getBody()
+        ->write(json_encode($documents, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return
+        $res->withHeader("Content-Type", "application/json")
+            ->withStatus(200);
 });
 
 /**
@@ -319,19 +323,20 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/document',
                 new Assert\Type('string'),
             ]),
             'content' => new Assert\Optional([ new Assert\Type('string') ]),
-            'parent_id' => new Assert\Optional([new Assert\Type('integer')]),
-            'previous_id' => new Assert\Optional([new Assert\Type('integer')]),
-            'creator_id' => new Assert\Optional([new Assert\Type('integer')]),
-            'prerequisite' => new Assert\Optional([new Assert\Type('integer')])
+            'parent_id' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'previous_id' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'creator_id' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'prerequisite' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()])
         ]
     ]));
 
     $course = api_get_course_info($args['course_code']);
     if (!$course)
         throwException($req, '404', "Course with code {$args['course_code']} not found.");
-    
+
     $token = $req->getAttribute("token");
     $userId = $token['uid'];
+
     $learningpath = new learnpath(
         $args['course_code'],
         $args['learningpath_id'],
@@ -342,7 +347,6 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/document',
         throwException($req, '404', "Learning path with id {$args['learningpath_id']} not found.");
 
     //Parameters for document
-    $courseInfo = api_get_course_info($args['course_code']);
     $parentId = $data['parent_id'] ?: 0;
     $extension = 'html';
     $creatorId = $data['creator_id'] ?: 0;
@@ -350,7 +354,7 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/document',
     $content = $data['content'] ?: '';
 
     $documentId = $learningpath->create_document(
-        $courseInfo,
+        $course,
         $content,
         $title,
         $extension,
@@ -380,8 +384,9 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/document',
     if (!$lpDocument) 
         throwException($req, '422', "Learningpath document could not be created.");
 
-    $res->withHeader("Content-Type", "application/json");
-    $res->withStatus(201);
-    $res->getBody()->write(json_encode($lpDocument, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-    return $res;
+    $res->getBody()
+        ->write(json_encode($lpDocument, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return
+        $res->withHeader("Content-Type", "application/json")
+            ->withStatus(201);
 });

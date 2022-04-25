@@ -73,7 +73,6 @@ $endpoint->post('/auth', function (Request $req, Response $res, array $args) {
 
     $now = new DateTime();
     $future = new DateTime("now +12 hours");
-    $server = $req->getServerParams();
 
     $jti = base64_encode(random_bytes(16));
 
@@ -93,8 +92,8 @@ $endpoint->post('/auth', function (Request $req, Response $res, array $args) {
 
     $res->getBody()
         ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-    $res->withStatus(201)
-        ->withHeader("Content-Type", "application/json");
 
-    return $res;
+    return 
+        $res->withStatus(201)
+            ->withHeader("Content-Type", "application/json");;
 });

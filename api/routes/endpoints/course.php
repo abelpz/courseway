@@ -84,12 +84,11 @@ $endpoint->get('/courses', function (Request $req, Response $res, $args) use ($e
     if (!$courses)
         throwException($req, '404', 'Courses not found.');
 
-    $res->withHeader("Content-Type", "application/json");
-    $res->withStatus(200);
     $res->getBody()->write(json_encode($courses, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
 
-    return $res;
-});
+    return
+        $res->withHeader("Content-Type", "application/json")
+        ->withStatus(200);});
 
 /**
  * @OA\Post(
@@ -100,11 +99,11 @@ $endpoint->get('/courses', function (Request $req, Response $res, $args) use ($e
  *          @OA\MediaType(
  *             mediaType="application/json",
  *             @OA\Schema(
- *                 required={"title","user_id"},
+ *                 required={"title"},
  *                 @OA\Property(
  *                     property="user_id",
  *                     type="integer",
- *                     description="<small>course owner id (will be added as teacher)</small>"
+ *                     description="<small>course owner id (will be added as teacher), defaults to the requester ID.</small>"
  *                 ),
  *                 @OA\Property(
  *                     property="title",
@@ -189,31 +188,31 @@ $endpoint->post('/course', function (Request $req, Response $res, $args) use ($e
     //Validate params
     Validator::validate($req, $data, new Assert\Collection([
         'fields' => [
-            'user_id' => new Assert\Required([
-                new Assert\NotBlank(),
-                new Assert\Type('integer')
-            ]),
             'title' => new Assert\Required([
                 new Assert\NotBlank(),
                 new Assert\Type('string')
             ]),
+            'user_id' => new Assert\Optional([
+                new Assert\NotBlank(),
+                new Assert\Type('integer'), new Assert\PositiveOrZero()
+            ]),
             'intro_text' => new Assert\Optional([new Assert\Type('string')]),
             'wanted_code' => new Assert\Optional([new Assert\Type('string')]),
             'course_language' => new Assert\Optional([new Assert\Type('string')]),
-            'disk_quota' => new Assert\Optional([new Assert\Type('integer')]),
-            'visibility' => new Assert\Optional([new Assert\Type('integer')]),
+            'disk_quota' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero(), new Assert\PositiveOrZero()]),
+            'visibility' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
             'course_category' => new Assert\Optional([new Assert\Type('string')]),
             'department_name' => new Assert\Optional([new Assert\Type('string')]),
             'department_url' => new Assert\Optional([new Assert\Type('string')]),
-            'subscribe' => new Assert\Optional([new Assert\Type('integer')]),
-            'unsubscribe' => new Assert\Optional([new Assert\Type('integer')]),
+            'subscribe' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'unsubscribe' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
             'teachers' => new Assert\Optional([
                 new Assert\Type('array'),
-                new Assert\All([ new Assert\Type('integer') ]),
+                new Assert\All([ new Assert\Type('integer'), new Assert\PositiveOrZero() ]),
             ]),
         ]
     ]));
-
+    
     //Check if teachers ids exist
     foreach ($data['teachers'] as $key => $value) {
         $teacher = api_get_user_info($value);
@@ -232,6 +231,8 @@ $endpoint->post('/course', function (Request $req, Response $res, $args) use ($e
     if(api_get_course_info($data['wanted_code']))
         throwException($req, '400', 'The provided or generated `wanted_code` already exists in database. Try adding a custom `wanted_code`.');
 
+    $token = $req->getAttribute("token");
+    $data['user_id'] = $data['user_id'] ?: $token['uid'];
     $course = CourseManager::create_course($data, $data['user_id']);
     if (!$course)
         throwException($req, '422', 'Course could not be created.');
@@ -252,12 +253,12 @@ $endpoint->post('/course', function (Request $req, Response $res, $args) use ($e
     }
 
     //Send created course data
-    $res->withHeader("Content-Type", "application/json");
-    $res->withStatus(201);
     $res->getBody()
         ->write(json_encode($course, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
 
-    return $res;
+    return
+        $res->withHeader("Content-Type", "application/json")
+            ->withStatus(201);
 });
 
 /**
@@ -274,11 +275,13 @@ $endpoint->post('/course', function (Request $req, Response $res, $args) use ($e
 $endpoint->get('/courses/categories', function (Request $req, Response $res, $args) use ($endpoint) {
 
     $category = CourseCategory::getCategories();
-    $res->withHeader("Content-Type", "application/json");
-    $res->withStatus(201);
-    $res->getBody()->write(json_encode($category, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
 
-    return $res;
+    $res->getBody()
+        ->write(json_encode($category, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    return
+        $res->withHeader("Content-Type", "application/json")
+            ->withStatus(200);
 });
 
 /**
@@ -345,12 +348,12 @@ $endpoint->post('/courses/category', function (Request $req, Response $res, $arg
     if (!$category)
         throwException($req, '422', 'Category could not be created');
 
-    $res->withHeader("Content-Type", "application/json");
-    $res->withStatus(201);
     $res->getBody()
         ->write(json_encode($category, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
 
-    return $res;
+    return
+        $res->withHeader("Content-Type", "application/json")
+            ->withStatus(201);
 });
 
 use Chamilo\CourseBundle\Component\CourseCopy\CourseBuilder;
@@ -398,7 +401,9 @@ $endpoint->get('/course/{course_code}/resources', function (Request $req, Respon
     if (empty($course)) 
         throwException($req, '422', 'Resources could not be listed.');
 
-    $res->withHeader("Content-Type", "application/json");
-    $res->getBody()->write(json_encode($course, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-    return $res;
+    $res->getBody()
+        ->write(json_encode($course, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return
+        $res->withHeader("Content-Type", "application/json")
+            ->withStatus(200);
 });
