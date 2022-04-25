@@ -3,6 +3,9 @@
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
+use Symfony\Component\Validator\Constraints as Assert;
+use CourseWay\Validation\Validator;
+
 /**
  * @OA\Get(
  *     path="/course/{course_code}/documents", tags={"Documents"},
@@ -22,38 +25,29 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *          @OA\Schema(type="string"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
 $endpoint->get('/course/{course_code}/documents', function (Request $req, Response $res, $args) use ($endpoint) {
     $params = $req->getQueryParams();
-    $token = $req->getAttribute("token");
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
-
-    if (empty($args['course_code'])) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'You are required to provide: course_code'));
-        return $res;
-    }
-
-    if (!$user->isSuperAdmin()) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
-    }
+    //Validate params
+    Validator::validate($req, array_merge($params,$args), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'path' => new Assert\Optional([
+                new Assert\Type('string')
+            ]),
+        ]
+    ]));
 
     $course = api_get_course_info($args['course_code']);
-    if (!$course) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'Course code not found'));
-        return $res;
-    }
+    if (!$course)
+        throwException($req, '404', "Course with code {$args['course_code']} not found.");
 
     $path = $params['path'];
 
@@ -81,11 +75,12 @@ $endpoint->get('/course/{course_code}/documents', function (Request $req, Respon
  *          @OA\MediaType(
  *             mediaType="multipart/form-data",
  *             @OA\Schema(
- *                   @OA\Property(
- *                   description="image to upload",
- *                   property="imageUpload",
- *                   type="string",
- *                   format="binary",
+ *                  required={"imageUpload"},
+ *                  @OA\Property(
+ *                     description="image to upload",
+ *                     property="imageUpload",
+ *                     type="string",
+ *                     format="binary",
  *                  ),
  *                  @OA\Property(
  *                     property="title",
@@ -97,83 +92,43 @@ $endpoint->get('/course/{course_code}/documents', function (Request $req, Respon
  *                 ),
  *              )
  *         ),
- *          @OA\MediaType(
- *             mediaType="application/json",
- *             @OA\Schema(
- *                 @OA\Property(
- *                     property="title",
- *                     type="string",
- *                     description="<small>Title of the document.</small>"
- *                 ),
- *                 @OA\Property(
- *                     property="content",
- *                     type="string",
- *                     description="<small>Content of the document.</small>"
- *                 ),
- *                 @OA\Property(
- *                     property="parent_id",
- *                     type="integer",
- *                     description="<small>The parent section for this document.</small>"
- *                 ),
- *                 @OA\Property(
- *                     property="previous_id",
- *                     type="integer",
- *                     description="<small>id of the document that will be before this one. Should be the same as parent_id section if this will be the first subsection of a section.</small>"
- *                 ),
- *                 @OA\Property(
- *                     property="creator_id",
- *                     type="integer",
- *                     description="<small>The user id of the creator of this document.</small>"
- *                 ),
- *                 @OA\Property(
- *                     property="prerequisite",
- *                     type="integer",
- *                     description="<small>Id of document that has to be completed by student to access this one.</small>"
- *                 )
- *             )
- *         )
  *     ),
- *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="201", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
 $endpoint->post('/course/{course_code}/documents/image', function (Request $req, Response $res, $args) use ($endpoint) {
     $data = $req->getParsedBody();
-    $token = $req->getAttribute("token");
-    $userId = $token['uid'];
-    $uploadedFiles = $req->getUploadedFiles() ? $_FILES : null;
+    $uploadedFiles = $req->getUploadedFiles() ? $_FILES : [];
 
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
-
-    if (empty($args['course_code'])) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-        ->write(slim_msg('error', 'You are required to provide: course_code.'));
-        return $res;
-    }
-
-    if (!$user->isSuperAdmin()) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(401);
-        $res->getBody()
-        ->write(slim_msg('error', 'You need to have admin role to access this.'));
-        return $res;
-    }
+    Validator::validate($req, array_merge($data, $args, $uploadedFiles), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'imageUpload' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('array'),
+                new Assert\All([
+                    new Assert\NotBlank()
+                ]),
+            ]),
+            'title' => new Assert\Optional([new Assert\Type('string')]),
+            'comment' => new Assert\Optional([new Assert\Type('string')]),
+        ]
+    ]));
 
     $course = api_get_course_info($args['course_code']);
-    if(!$course){
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'Course code not found'));
-        return $res;
-    }
+    if (!$course)
+        throwException($req, '404', "Course with code {$args['course_code']} not found.");
 
+    $token = $req->getAttribute("token");
+    $userId = $token['uid'];
     $result = DocumentManager::upload_document(
-        $uploadedFiles,
+        $data['imageUpload'],
         '/images',
         $data['title'] ?: '',
         $data['comment'] ?: '',
@@ -187,18 +142,12 @@ $endpoint->post('/course/{course_code}/documents/image', function (Request $req,
         $course
     );
 
-    if (!$result) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'Image could not be uploaded'));
-        return $res;
-    }
+    if (!$result)
+        throwException($req, '422', "Image coud not be uploaded.");
 
     $res->withHeader("Content-Type", "application/json");
-    $res->withStatus(200);
-    $res->getBody()
-        ->write(json_encode($result, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    $res->withStatus(201);
+    $res->getBody()->write(json_encode($result, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
     return $res;
 });
 
@@ -222,61 +171,70 @@ $endpoint->post('/course/{course_code}/documents/image', function (Request $req,
  *          @OA\Schema(type="integer"),
  *     ),
  *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
 $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/documents', function (Request $req, Response $res, $args) use ($endpoint) {
-    $params = $req->getQueryParams();
 
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'learningpath_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric'),
+            ]),
+        ]
+    ]));
+    
     $token = $req->getAttribute("token");
-    $user = UserManager::getManager()->findUserByUsername($token['uname']);
-
-    if (empty($args['course_code'])) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'You are required to provide: course_code'));
-        return $res;
-    }
-
     $userId = $token['uid'];
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code {$args['course_code']} not found.");
+
     $learningpath = new learnpath(
         $args['course_code'],
         $args['learningpath_id'],
         $userId
     );
+    if (!$learningpath->name)
+        throwException($req, '404', "Learning path with id {$args['learningpath_id']} not found.");
 
-    if ($user->isSuperAdmin()) {
-        $items = $learningpath->items;
-        foreach ($items as $id => $documentItem) {
+    $items = $learningpath->items;
+    if(!$items)
+        throwException($req, '422', "Learning path with id {$args['learningpath_id']} is empty.");
 
-            if ($documentItem->get_type() == 'document') {
+    $documents = [];
 
-                $documentItem->set_path(api_get_path(SYS_COURSE_PATH) . $args['course_code'] . '/' . $documentItem->get_file_path());
+    foreach ($items as $id => $documentItem) {
+        $type = $documentItem->get_type();
+        if($type === 'document' || $type === 'dir') { 
 
-                // $dom = new DomDocument();
-                // $dom->loadHTML($documentItem->output());
-                // echo $dom->saveHTML($dom->getElementsByTagName('body')[0]);
+            $documentItem->set_path(api_get_path(SYS_COURSE_PATH) . $args['course_code'] . '/' . $documentItem->get_file_path());
 
-                $documents[$id] = [
-                    "title" => $documentItem->get_title(),
-                    "content" => $documentItem->output(),
-                    "display_order" => $documentItem->display_order,
-                    "parent_id" => $documentItem->get_parent(),
-                    "path" => $documentItem->get_file_path()
-                ];
-            }
+            $documents[$id] = [
+                "title" => $documentItem->get_title(),
+                "content" => $documentItem->output(),
+                "display_order" => $documentItem->display_order,
+                "parent_id" => $documentItem->get_parent(),
+                "path" => $documentItem->get_file_path(),
+                "type" => $documentItem->get_type(),
+            ];
         }
-        $res->withHeader("Content-Type", "application/json");
-        $res->getBody()->write(json_encode($documents, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-    } else {
-        $res->withHeader("Content-Type", "application/json");
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
     }
 
+    if(!$documents)
+        throwException($req, '422', "No documents found in learning path with id {$args['learningpath_id']}.");
+
+    $res->withHeader("Content-Type", "application/json");
+    $res->withStatus(200);
+    $res->getBody()->write(json_encode($documents, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
     return $res;
 });
 
@@ -337,9 +295,9 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/documents',
  *             )
  *         )
  *     ),
- *     @OA\Response(response="200", description="Success"),
- *     @OA\Response(response="401", description="Unauthorized"),
- *     @OA\Response(response="400", description="Bad request")
+ *     @OA\Response(response="201", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
 
@@ -350,75 +308,82 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/document',
 
     $user = UserManager::getManager()->findUserByUsername($token['uname']);
 
-    if (empty($args['course_code']) or empty($args['learningpath_id'] or $data['title'])) {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(400);
-        $res->getBody()
-            ->write(slim_msg('error', 'You are required to provide: course_code, learningpath_id, title.'));
-        return $res;
-    }
+    Validator::validate($req, array_merge($args, $data), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'learningpath_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric'),
+            ]),
+            'title' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string'),
+            ]),
+            'content' => new Assert\Optional([ new Assert\Type('string') ]),
+            'parent_id' => new Assert\Optional([new Assert\Type('integer')]),
+            'previous_id' => new Assert\Optional([new Assert\Type('integer')]),
+            'creator_id' => new Assert\Optional([new Assert\Type('integer')]),
+            'prerequisite' => new Assert\Optional([new Assert\Type('integer')])
+        ]
+    ]));
 
-    if ($user->isSuperAdmin()) {
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code {$args['course_code']} not found.");
 
-        $learningpath = new learnpath(
-            $args['course_code'],
-            $args['learningpath_id'],
-            $userId
-        );
+    $learningpath = new learnpath(
+        $args['course_code'],
+        $args['learningpath_id'],
+        $userId
+    );
 
-        //Parameters for document
-        $courseInfo = api_get_course_info($args['course_code']);
-        $parentId = $data['parent_id'] ?: 0;
-        $extension = 'html';
-        $creatorId = $data['creator_id'] ?: 0;
-        $title = $data['title'];
-        $content = $data['content'] ?: '';
+    if (!$learningpath->name)
+        throwException($req, '404', "Learning path with id {$args['learningpath_id']} not found.");
 
-        $documentId = $learningpath->create_document(
-            $courseInfo,
-            $content,
-            $title,
-            $extension,
-            $parentId,
-            $creatorId
-        );
+    //Parameters for document
+    $courseInfo = api_get_course_info($args['course_code']);
+    $parentId = $data['parent_id'] ?: 0;
+    $extension = 'html';
+    $creatorId = $data['creator_id'] ?: 0;
+    $title = $data['title'];
+    $content = $data['content'] ?: '';
 
-        //Parameters for lp_item
-        $previous = $data['previous_id'] ?: $learningpath->getLastInFirstLevel();
-        $type = 'document';
-        $description = '';
-        $prerequisites = $data['prerequisite'] ?: 0;
-        $max_time_allowed = 0;
+    $documentId = $learningpath->create_document(
+        $courseInfo,
+        $content,
+        $title,
+        $extension,
+        $parentId,
+        $creatorId
+    );
 
-        $lpDocument = $learningpath->add_item(
-            $parentId,
-            $previous,
-            $type,
-            $documentId,
-            $title,
-            $description,
-            $prerequisites,
-            $max_time_allowed,
-            $userId
-        );
+    //Parameters for lp_item
+    $previous = $data['previous_id'] ?: $learningpath->getLastInFirstLevel();
+    $type = 'document';
+    $description = '';
+    $prerequisites = $data['prerequisite'] ?: 0;
+    $max_time_allowed = 0;
 
-        if ($lpDocument) {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(200);
-            $res->getBody()
-                ->write(json_encode($lpDocument, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-        } else {
-            $res->withHeader("Content-Type", "application/json");
-            $res->withStatus(400);
-            $res->getBody()
-                ->write(slim_msg('error', 'Learningpath Category could not be created'));
-        }
-    } else {
-        $res->withHeader("Content-Type", "application/json");
-        $res->withStatus(401);
-        $res->getBody()
-            ->write(slim_msg('error', 'You need to have admin role to access this.'));
-    }
+    $lpDocument = $learningpath->add_item(
+        $parentId,
+        $previous,
+        $type,
+        $documentId,
+        $title,
+        $description,
+        $prerequisites,
+        $max_time_allowed,
+        $userId
+    );
 
+    if (!$lpDocument) 
+        throwException($req, '422', "Learningpath document could not be created.");
+
+    $res->withHeader("Content-Type", "application/json");
+    $res->withStatus(201);
+    $res->getBody()->write(json_encode($lpDocument, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
     return $res;
 });
