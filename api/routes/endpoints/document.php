@@ -143,8 +143,6 @@ $endpoint->post('/course/{course_code}/documents/image', function (Request $req,
         $course
     );
 
-    var_dump($uploadedFiles);
-
     if (!$result)
         throwException($req, '422', "Image coud not be uploaded.");
 
