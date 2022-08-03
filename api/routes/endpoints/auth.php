@@ -95,5 +95,5 @@ $endpoint->post('/auth', function (Request $req, Response $res, array $args) {
 
     return 
         $res->withStatus(201)
-            ->withHeader("Content-Type", "application/json");;
+            ->withHeader("Content-Type", "application/json");
 });

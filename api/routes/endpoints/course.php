@@ -1,5 +1,6 @@
 <?php
 
+use Chamilo\CourseBundle\Component\CourseCopy\CourseArchiver;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -263,6 +264,88 @@ $endpoint->post('/course', function (Request $req, Response $res, $args) use ($e
 
 /**
  * @OA\Get(
+ *     path="/course/{course_code}", tags={"Courses"},
+ *     summary="Get course by course code",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the tests are located.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Response(response="200", description="Success"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->get('/course/{course_code}', function (Request $req, Response $res, $args) use ($endpoint) {
+
+    //Validate params
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+        ]
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', 'Course not found.');
+
+    $res->getBody()
+        ->write(json_encode($course, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return
+        $res->withHeader("Content-Type", "application/json")
+        ->withStatus(200);
+});
+
+/**
+ * @OA\Delete(
+ *     path="/course/{course_code}", tags={"Courses"},
+ *     summary="Delete course by course code",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the tests are located.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Response(response="204", description="Success"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->delete('/course/{course_code}', function (Request $req, Response $res, $args) use ($endpoint) {
+
+    //Validate params
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+        ]
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', 'Course not found.');
+
+    $deleted = CourseManager::delete_course($args['course_code']);
+    if (!$deleted)
+        throwException($req, '422', "Course could not be deleted.");
+
+    return $res->withStatus(204);
+});
+
+/**
+ * @OA\Get(
  *     path="/courses/categories", tags={"Courses"},
  *     summary="Get list of categories",
  *     security={{"bearerAuth": {}}},
@@ -295,14 +378,14 @@ $endpoint->get('/courses/categories', function (Request $req, Response $res, $ar
  *             @OA\Schema(
  *                 required={"category_code","name"},
  *                 @OA\Property(
- *                     property="category_code",
- *                     type="string",
- *                     description="<small>unique string identifier for this category</small>"
- *                 ),
- *                 @OA\Property(
  *                     property="name",
  *                     type="string",
  *                     description="<small>category name</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="category_code",
+ *                     type="string",
+ *                     description="<small>unique string identifier for this category</small>"
  *                 ),
  *                 @OA\Property(
  *                     property="parent_code",
@@ -324,11 +407,11 @@ $endpoint->post('/courses/category', function (Request $req, Response $res, $arg
     //Validate params
     Validator::validate($req, $data, new Assert\Collection([
         'fields' => [
-            'category_code' => new Assert\Required([
+            'name' => new Assert\Required([
                 new Assert\NotBlank(),
                 new Assert\Type('string')
             ]),
-            'name' => new Assert\Required([
+            'category_code' => new Assert\Required([
                 new Assert\NotBlank(),
                 new Assert\Type('string')
             ]),
@@ -344,9 +427,11 @@ $endpoint->post('/courses/category', function (Request $req, Response $res, $arg
     if(is_array($parent_category) && empty($parent_category))
         throwException($req, '400', 'Category parent with code `' . $parent_code . '` does not exist.');
 
-    $category = CourseCategory::addNode($code, $name, $canHaveCourses, $parent_category['id']);
-    if (!$category)
+    $categoryId = CourseCategory::addNode($code, $name, $canHaveCourses, $parent_category['id']);
+    if (!$categoryId)
         throwException($req, '422', 'Category could not be created');
+
+    $category = CourseCategory::getCategoryById($categoryId);
 
     $res->getBody()
         ->write(json_encode($category, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
@@ -356,7 +441,89 @@ $endpoint->post('/courses/category', function (Request $req, Response $res, $arg
             ->withStatus(201);
 });
 
-use Chamilo\CourseBundle\Component\CourseCopy\CourseBuilder;
+/**
+ * @OA\Get(
+ *     path="/courses/category/{category_code}", tags={"Courses"},
+ *     summary="Get category by category code",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the category.",
+ *          in="path",
+ *          name="category_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Response(response="200", description="Success"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->get('/courses/category/{category_code}', function (Request $req, Response $res, $args) use ($endpoint) {
+
+    //Validate params
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'category_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+        ]
+    ]));
+
+    $category = CourseCategory::getCategory($args['category_code']);
+    if (!$category)
+        throwException($req, '404', 'Category not found.');
+
+    $res->getBody()
+        ->write(json_encode($category, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return
+        $res->withHeader("Content-Type", "application/json")
+        ->withStatus(200);
+});
+
+/**
+ * @OA\Delete(
+ *     path="/courses/category/{category_code}", tags={"Courses"},
+ *     summary="Delete category by category code",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the category.",
+ *          in="path",
+ *          name="category_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Response(response="204", description="Success"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->delete('/courses/category/{category_code}', function (Request $req, Response $res, $args) use ($endpoint) {
+
+    //Validate params
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'category_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+        ]
+    ]));
+
+    $category = CourseCategory::getCategory($args['category_code']);
+    if (!$category)
+        throwException($req, '404', 'Category not found.');
+        
+    $deleted = CourseCategory::deleteNode($args['category_code']);
+    if (!$deleted)
+        throwException($req, '422', 'Could not delete category.');
+
+    return
+        $res->withHeader("Content-Type", "application/json")
+        ->withStatus(204);
+});
 
 /**
  * @OA\Get(
@@ -375,6 +542,7 @@ use Chamilo\CourseBundle\Component\CourseCopy\CourseBuilder;
  *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
+use Chamilo\CourseBundle\Component\CourseCopy\CourseBuilder;
 
 $endpoint->get('/course/{course_code}/resources', function (Request $req, Response $res, $args) use ($endpoint) {
 
@@ -393,17 +561,71 @@ $endpoint->get('/course/{course_code}/resources', function (Request $req, Respon
         throwException($req, '404', 'Course not found.');
 
     $courseBuilder = new CourseBuilder('complete', $course);
-    $course = $courseBuilder->build(
+    $courseList = $courseBuilder->build(
         0,
         $args['course_code'],
         false
     );
-    if (empty($course)) 
+    if (empty($courseList)) 
         throwException($req, '422', 'Resources could not be listed.');
 
     $res->getBody()
-        ->write(json_encode($course, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+        ->write(json_encode($courseList, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
     return
         $res->withHeader("Content-Type", "application/json")
             ->withStatus(200);
+});
+
+/**
+ * @OA\Get(
+ *     path="/course/{course_code}/backup", tags={"Courses"},
+ *     summary="Get backup of a course",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course to backup.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Response(response="200", description="Success"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->get('/course/{course_code}/backup', function (Request $req, Response $res, $args) use ($endpoint) {
+
+    //Validate params
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+        ]
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', 'Course not found.');
+
+    $courseBuilder = new CourseBuilder('complete', $course);
+    $courseList = $courseBuilder->build(
+        0,
+        $args['course_code'],
+        false
+    );
+    $zipFile = CourseArchiver::createBackup($courseList);
+
+    $temp_zip_file = CourseArchiver::getBackupDir() . $zipFile;
+    DocumentManager::file_send_for_download($temp_zip_file, true, $zipFile);
+
+    if (!$zipFile)
+        throwException($req, '422', 'Resources could not be listed.');
+
+    // $res->getBody()
+    //     ->write(json_encode($courseList, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return
+        $res->withStatus(200);
 });

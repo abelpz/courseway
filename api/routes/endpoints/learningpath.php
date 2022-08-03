@@ -374,7 +374,6 @@ $endpoint->get('/course/{course_code}/learningpaths/categories', function (Reque
 
 $endpoint->post('/course/{course_code}/learningpaths/category', function (Request $req, Response $res, $args) use ($endpoint) {
     $data = json_decode($req->getBody()->getContents(), true);
-    $token = $req->getAttribute("token");
 
     Validator::validate($req, array_merge($data, $args), new Assert\Collection([
         'fields' => [
@@ -409,6 +408,126 @@ $endpoint->post('/course/{course_code}/learningpaths/category', function (Reques
             ->withHeader("Content-Type", "application/json")
             ->withHeader("Location", COURSEWAY_API_URI . "/course/{$args['course_code']}/learningpaths/category/{$lpCategoryId}")
             ->withStatus(201);
+});
+
+/**
+ * @OA\Get(
+ *     path="/course/{course_code}/learningpaths/category/{category_id}", tags={"Learning Paths"},
+ *     summary="Get a learning path category from a course",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the learning path category is located.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique int identifier of the requested learning path category.",
+ *          in="path",
+ *          name="category_id",
+ *          required=true,
+ *          @OA\Schema(type="integer"),
+ *     ),
+ *     @OA\Response(response="200", description="Success"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->get('/course/{course_code}/learningpaths/category/{category_id}', function (Request $req, Response $res, $args) use ($endpoint) {
+    $data = json_decode($req->getBody()->getContents(), true);
+
+    Validator::validate($req, array_merge($data, $args), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'category_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ]),
+        ],
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
+
+    $lp_table = Database::get_course_table(TABLE_LP_CATEGORY);
+    $sql = "SELECT * FROM $lp_table WHERE iid = {$args['category_id']} AND c_id = {$course['real_id']}";
+    $result = Database::query($sql);
+    $lpCategory = Database::store_result($result, 'ASSOC');
+    if (!$lpCategory)
+        throwException($req, '404', "Learningpath Category not found.");
+
+
+    $res->getBody()->write(json_encode($lpCategory[0], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return $res
+        ->withHeader("Content-Type", "application/json")
+        ->withStatus(200);
+});
+
+/**
+ * @OA\Delete(
+ *     path="/course/{course_code}/learningpaths/category/{category_id}", tags={"Learning Paths"},
+ *     summary="Delete a learning path category from a course",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the learning path category is located.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique int identifier of the requested learning path category.",
+ *          in="path",
+ *          name="category_id",
+ *          required=true,
+ *          @OA\Schema(type="integer"),
+ *     ),
+ *     @OA\Response(response="204", description="Success"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->delete('/course/{course_code}/learningpaths/category/{category_id}', function (Request $req, Response $res, $args) use ($endpoint) {
+    $data = json_decode($req->getBody()->getContents(), true);
+
+    Validator::validate($req, array_merge($data, $args), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'category_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ]),
+        ],
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
+
+    $lp_table = Database::get_course_table(TABLE_LP_CATEGORY);
+    $sql = "SELECT * FROM $lp_table WHERE iid = {$args['category_id']} AND c_id = {$course['real_id']}";
+    $result = Database::query($sql);
+    $lpCategory = Database::store_result($result, 'ASSOC');
+    if (!$lpCategory)
+        throwException($req, '404', "Learningpath Category not found.");
+
+    $deleted = learnpath::deleteCategory($args['category_id']);
+    if (!$deleted)
+        throwException($req, '422', "Learning path category could not be deleted.");
+
+    return $res
+        ->withHeader("Content-Type", "application/json")
+        ->withStatus(204);
 });
 
 /**
@@ -593,3 +712,232 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/section', 
             ->withStatus(201);
 });
 
+/**
+ * @OA\Get(
+ *     path="/course/{course_code}/learningpath/{learningpath_id}/section/{section_id}", tags={"Learning Paths"},
+ *     summary="Get section from learning path",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the learning path section is located.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique int identifier of the learning path in which the section is located",
+ *          in="path",
+ *          name="learningpath_id",
+ *          required=true,
+ *          @OA\Schema(type="integer"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique int identifier of the requested section.",
+ *          in="path",
+ *          name="section_id",
+ *          required=true,
+ *          @OA\Schema(type="integer"),
+ *     ),
+ *     @OA\Response(response="200", description="Success"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/section/{section_id}', function (Request $req, Response $res, $args) use ($endpoint) {
+    $data = json_decode($req->getBody()->getContents(), true);
+
+
+    Validator::validate($req, array_merge($args, $data), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'learningpath_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ]),
+            'section_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ]),
+        ]
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
+
+    $token = $req->getAttribute("token");
+    $userId = $token['uid'];
+    $learningpath = new learnpath(
+        $args['course_code'],
+        $args['learningpath_id'],
+        $userId
+    );
+    if (!$learningpath->name)
+        throwException($req, '404', "Learning path with id {$args['learningpath_id']} not found.");
+
+    $lpSection = $learningpath->getItem('section_id');
+    if (!$lpSection)
+        throwException($req, '404', "Learningpath section not found.");
+
+    $res->getBody()
+        ->write(json_encode($lpSection, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    return
+        $res
+        ->withHeader("Content-Type", "application/json")
+        ->withStatus(200);
+});
+
+/**
+ * @OA\Delete(
+ *     path="/course/{course_code}/learningpath/{learningpath_id}/section/{section_id}", tags={"Learning Paths"},
+ *     summary="Delete section from learning path",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the learning path section is located.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique int identifier of the learning path in which the section is located",
+ *          in="path",
+ *          name="learningpath_id",
+ *          required=true,
+ *          @OA\Schema(type="integer"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique int identifier of the requested section.",
+ *          in="path",
+ *          name="section_id",
+ *          required=true,
+ *          @OA\Schema(type="integer"),
+ *     ),
+ *     @OA\Response(response="204", description="Success"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->delete('/course/{course_code}/learningpath/{learningpath_id}/section/{section_id}', function (Request $req, Response $res, $args) use ($endpoint) {
+    $data = json_decode($req->getBody()->getContents(), true);
+
+
+    Validator::validate($req, array_merge($args, $data), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'learningpath_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ]),
+            'section_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ]),
+        ]
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
+
+    $token = $req->getAttribute("token");
+    $userId = $token['uid'];
+    $learningpath = new learnpath(
+        $args['course_code'],
+        $args['learningpath_id'],
+        $userId
+    );
+    if (!$learningpath->name)
+        throwException($req, '404', "Learning path with id {$args['learningpath_id']} not found.");
+
+    $lpSection = $learningpath->getItem('section_id');
+    if (!$lpSection)
+        throwException($req, '404', "Learningpath section not found.");
+
+    $deleted = $learningpath->delete_item('section_id');
+    if ($deleted <= 0)
+        throwException($req, '404', "Learningpath section could not be deleted.");
+
+    return
+        $res
+        ->withHeader("Content-Type", "application/json")
+        ->withStatus(204);
+});
+
+/**
+ * @OA\Get(
+ *     path="/course/{course_code}/learningpath/{learningpath_id}/scorm", tags={"Learning Paths"},
+ *     summary="Get learningpath as scorm package",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the learning path is located.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique int identifier of the learning path.",
+ *          in="path",
+ *          name="learningpath_id",
+ *          required=true,
+ *          @OA\Schema(type="integer"),
+ *     ),
+ *     @OA\Response(response="200", description="Success"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/scorm', function (Request $req, Response $res, $args) use ($endpoint) {
+
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'learningpath_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric'),
+            ]),
+        ]
+    ]));
+
+    $token = $req->getAttribute("token");
+    $userId = $token['uid'];
+
+    $course = api_get_course_info($args['course_code']);
+
+
+    if (!$course)
+        throwException($req, '404', "Course with code {$args['course_code']} not found.");
+
+    $learningpath = new learnpath(
+        $args['course_code'],
+        $args['learningpath_id'],
+        $userId
+    );
+    if (!$learningpath->name)
+        throwException($req, '404', "Learning path with id {$args['learningpath_id']} not found.");
+
+    $items = $learningpath->items;
+    if (!$items)
+        throwException($req, '422', "Learning path with id {$args['learningpath_id']} is empty.");
+
+    lpScormExport($args['course_code'],$learningpath);
+
+    // $res->getBody()
+    //     ->write(json_encode($documents, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return
+        $res->withStatus(200);
+});

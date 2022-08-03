@@ -9,7 +9,6 @@ use Slim\Exception\HttpNotImplementedException;
 use Slim\Exception\HttpUnauthorizedException;
 use Slim\Interfaces\ErrorRendererInterface;
 use Slim\Exception\HttpInternalServerErrorException;
-use Throwable;
 
 class JsonErrorRenderer implements ErrorRendererInterface
 {

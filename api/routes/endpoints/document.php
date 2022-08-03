@@ -33,7 +33,7 @@ use CourseWay\Validation\Validator;
 $endpoint->get('/course/{course_code}/documents', function (Request $req, Response $res, $args) use ($endpoint) {
     $params = $req->getQueryParams();
     //Validate params
-    Validator::validate($req, array_merge($params,$args), new Assert\Collection([
+    Validator::validate($req, array_merge($params, $args), new Assert\Collection([
         'fields' => [
             'course_code' => new Assert\Required([
                 new Assert\NotBlank(),
@@ -57,7 +57,7 @@ $endpoint->get('/course/{course_code}/documents', function (Request $req, Respon
         ->write(json_encode($documents, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
     return
         $res->withHeader("Content-Type", "application/json")
-            ->withStatus(200);
+        ->withStatus(200);
 });
 
 /**
@@ -129,7 +129,7 @@ $endpoint->post('/course/{course_code}/documents/image', function (Request $req,
     $token = $req->getAttribute("token");
     $userId = $token['uid'];
     $result = DocumentManager::upload_document(
-        $data['imageUpload'],
+        $uploadedFiles,
         '/images',
         $data['title'] ?: '',
         $data['comment'] ?: '',
@@ -143,15 +143,238 @@ $endpoint->post('/course/{course_code}/documents/image', function (Request $req,
         $course
     );
 
+    var_dump($uploadedFiles);
+
     if (!$result)
         throwException($req, '422', "Image coud not be uploaded.");
 
     $res->getBody()
         ->write(json_encode($result, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-    
+
     return
         $res->withHeader("Content-Type", "application/json")
         ->withStatus(201);
+});
+
+
+/**
+ * @OA\Post(
+ *     path="/course/{course_code}/document", tags={"Documents"},
+ *     summary="Upload a document into a course",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the learning path section will be added.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\RequestBody(
+ *          @OA\MediaType(
+ *             mediaType="multipart/form-data",
+ *             @OA\Schema(
+ *                  required={"file"},
+ *                  @OA\Property(
+ *                     description="file to upload",
+ *                     property="file",
+ *                     type="string",
+ *                     format="binary",
+ *                  ),
+ *                 @OA\Property(
+ *                     description="Path to the uploaded file",
+ *                     property="path",
+ *                     type="string",
+ *                 ),
+ *                  @OA\Property(
+ *                     property="title",
+ *                     type="string",
+ *                 ),
+ *                 @OA\Property(
+ *                     property="comment",
+ *                     type="string",
+ *                 ),
+ *              )
+ *         ),
+ *     ),
+ *     @OA\Response(response="201", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->post('/course/{course_code}/document', function (Request $req, Response $res, $args) use ($endpoint) {
+    $data = $req->getParsedBody();
+    $uploadedFiles = $req->getUploadedFiles() ? $_FILES : [];
+
+    Validator::validate($req, array_merge($data, $args, $uploadedFiles), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'file' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('array'),
+                new Assert\All([
+                    new Assert\NotBlank()
+                ]),
+            ]),
+            'path' => new Assert\Optional([new Assert\Type('string')]),
+            'title' => new Assert\Optional([new Assert\Type('string')]),
+            'comment' => new Assert\Optional([new Assert\Type('string')]),
+        ]
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code {$args['course_code']} not found.");
+
+    $token = $req->getAttribute("token");
+    $userId = $token['uid'];
+    $path = $data['path'] ?: "/";
+    $result = DocumentManager::upload_document(
+        $uploadedFiles,
+        $path,
+        $data['title'] ?: '',
+        $data['comment'] ?: '',
+        0,
+        'rename',
+        false,
+        false,
+        'file',
+        true,
+        $userId,
+        $course
+    );
+
+    if (!$result)
+        throwException($req, '422', "File coud not be uploaded.");
+
+    $res->getBody()
+        ->write(json_encode($result, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    return
+        $res->withHeader("Content-Type", "application/json")
+        ->withStatus(201);
+});
+
+/**
+ * @OA\Get(
+ *     path="/course/{course_code}/document/{document_id}", tags={"Documents"},
+ *     summary="Get a document from a course.",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the documend is located.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique int identifier of the requested document.",
+ *          in="path",
+ *          name="document_id",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Response(response="200", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->get('/course/{course_code}/document/{document_id}', function (Request $req, Response $res, $args) use ($endpoint) {
+    $data = $req->getParsedBody();
+    $uploadedFiles = $req->getUploadedFiles() ? $_FILES : [];
+
+    Validator::validate($req, array_merge($data, $args, $uploadedFiles), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string'),
+            ]),
+            'document_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric'),
+            ]),
+        ]
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code {$args['course_code']} not found.");
+
+    $result = DocumentManager::get_document_data_by_id($args['document_id'], $args['course_code']);
+
+    if (!$result)
+        throwException($req, '404', "Document not found.");
+
+    $res->getBody()
+        ->write(json_encode($result, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    return
+        $res->withHeader("Content-Type", "application/json")
+        ->withStatus(200);
+});
+
+/**
+ * @OA\Delete(
+ *     path="/course/{course_code}/document/{document_id}", tags={"Documents"},
+ *     summary="Soft delete a document from a course.",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the documend is located.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique int identifier of the requested document.",
+ *          in="path",
+ *          name="document_id",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Response(response="200", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->delete('/course/{course_code}/document/{document_id}', function (Request $req, Response $res, $args) use ($endpoint) {
+    $data = $req->getParsedBody();
+    $uploadedFiles = $req->getUploadedFiles() ? $_FILES : [];
+
+    Validator::validate($req, array_merge($data, $args, $uploadedFiles), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string'),
+            ]),
+            'document_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric'),
+            ]),
+        ]
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code {$args['course_code']} not found.");
+
+    $document = DocumentManager::get_document_data_by_id($args['document_id'], $args['course_code']);
+    if (!$document)
+        throwException($req, '404', "Document not found.");
+
+    $result = DocumentManager::delete_document($course, null, null, null, $args['document_id']);
+
+    if (!$result)
+        throwException($req, '422', "Document could not be deleted.");
+
+    return
+        $res->withHeader("Content-Type", "application/json")
+        ->withStatus(204);
 });
 
 /**
@@ -193,11 +416,13 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/documents',
             ]),
         ]
     ]));
-    
+
     $token = $req->getAttribute("token");
     $userId = $token['uid'];
 
     $course = api_get_course_info($args['course_code']);
+
+
     if (!$course)
         throwException($req, '404', "Course with code {$args['course_code']} not found.");
 
@@ -210,20 +435,23 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/documents',
         throwException($req, '404', "Learning path with id {$args['learningpath_id']} not found.");
 
     $items = $learningpath->items;
-    if(!$items)
+    if (!$items)
         throwException($req, '422', "Learning path with id {$args['learningpath_id']} is empty.");
 
     $documents = [];
 
     foreach ($items as $id => $documentItem) {
         $type = $documentItem->get_type();
-        if($type === 'document' || $type === 'dir') { 
+        if ($type === 'document' || $type === 'dir') {
 
-            $documentItem->set_path(api_get_path(SYS_COURSE_PATH) . $args['course_code'] . '/' . $documentItem->get_file_path());
+            $path = api_get_path(SYS_COURSE_PATH) . $args['course_code'] . '/' . $documentItem->get_file_path();
+            $documentItem->set_path($path);
+            $ext = pathinfo($path)['extension'];
+            $content = $ext === 'pdf' ? "" : $documentItem->output();
 
             $documents[$id] = [
                 "title" => $documentItem->get_title(),
-                "content" => $documentItem->output(),
+                "content" => $content,
                 "display_order" => $documentItem->display_order,
                 "parent_id" => $documentItem->get_parent(),
                 "path" => $documentItem->get_file_path(),
@@ -232,14 +460,14 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/documents',
         }
     }
 
-    if(!$documents)
+    if (!$documents)
         throwException($req, '422', "No documents found in learning path with id {$args['learningpath_id']}.");
 
     $res->getBody()
         ->write(json_encode($documents, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
     return
         $res->withHeader("Content-Type", "application/json")
-            ->withStatus(200);
+        ->withStatus(200);
 });
 
 /**
@@ -322,7 +550,7 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/document',
                 new Assert\NotBlank(),
                 new Assert\Type('string'),
             ]),
-            'content' => new Assert\Optional([ new Assert\Type('string') ]),
+            'content' => new Assert\Optional([new Assert\Type('string')]),
             'parent_id' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
             'previous_id' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
             'creator_id' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
@@ -369,7 +597,7 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/document',
     $prerequisites = $data['prerequisite'] ?: 0;
     $max_time_allowed = 0;
 
-    $lpDocument = $learningpath->add_item(
+    $lpItemId = $learningpath->add_item(
         $parentId,
         $previous,
         $type,
@@ -381,12 +609,15 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/document',
         $userId
     );
 
-    if (!$lpDocument) 
+    $result = DocumentManager::get_document_data_by_id($documentId, $args['course_code']);
+    $result['lp_item'] = $learningpath->getItem($lpItemId);
+
+    if (!$lpItemId)
         throwException($req, '422', "Learningpath document could not be created.");
 
     $res->getBody()
-        ->write(json_encode($lpDocument, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+        ->write(json_encode($result, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
     return
         $res->withHeader("Content-Type", "application/json")
-            ->withStatus(201);
+        ->withStatus(201);
 });
