@@ -448,6 +448,7 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/documents',
             $content = $ext === 'pdf' ? "" : $documentItem->output();
 
             $documents[$id] = [
+                "id" => $id,
                 "title" => $documentItem->get_title(),
                 "content" => $content,
                 "display_order" => $documentItem->display_order,
