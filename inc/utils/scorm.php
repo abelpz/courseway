@@ -2,6 +2,8 @@
 
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Filesystem\Filesystem;
+use Chamilo\CourseBundle\Component\CourseCopy\CourseArchiver;
+use Chamilo\CourseBundle\Component\CourseCopy\CourseRestorer;
 
 
 function lpScormExport($corse_code, learnpath $lp)
@@ -757,3 +759,42 @@ EOD;
         $name = api_replace_dangerous_char($lp->get_name()).'.zip';
         DocumentManager::file_send_for_download($temp_zip_file, true, $name);
     }
+
+
+function lpScormImport($course_code, $files){
+
+    $current_dir = '';
+    $allowHtaccess = false;
+    if (api_get_configuration_value('allow_htaccess_import_from_scorm') && isset($_POST['allow_htaccess'])) {
+        $allowHtaccess = true;
+    }
+
+    $proximity = 'local';
+    if (!empty($_REQUEST['content_proximity'])) {
+        $proximity = Database::escape_string($_REQUEST['content_proximity']);
+    }
+
+    $maker = 'Scorm';
+    if (!empty($_REQUEST['content_maker'])) {
+        $maker = Database::escape_string($_REQUEST['content_maker']);
+    }
+
+    $oScorm = new scorm();
+    $manifest = $oScorm->import_package(
+        $files['scormUpload'],
+        $current_dir,
+        [],
+        false,
+        null,
+        $allowHtaccess
+    );
+    if (!empty($manifest)) {
+        $oScorm->parse_manifest($manifest);
+        $oScorm->import_manifest($course_code, $_REQUEST['use_max_score']);
+    }
+    $oScorm->set_proximity($proximity);
+    $oScorm->set_maker($maker);
+    $oScorm->set_jslib('scorm_api.php');
+
+    return $manifest;
+}

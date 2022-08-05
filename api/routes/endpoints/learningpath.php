@@ -941,3 +941,88 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/scorm', fun
     return
         $res->withStatus(200);
 });
+
+/**
+ * @OA\Post(
+ *     path="/course/{course_code}/learningpath/scorm", tags={"Learning Paths"},
+ *     summary="Create learningpath from scorm package",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the learning path is located.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\RequestBody(
+ *          @OA\MediaType(
+ *             mediaType="multipart/form-data",
+ *             @OA\Schema(
+ *                  required={"scormUpload"},
+ *                  @OA\Property(
+ *                     description="scorm to upload",
+ *                     property="scormUpload",
+ *                     type="string",
+ *                     format="binary",
+ *                  ),
+ *                 @OA\Property(
+ *                     property="use_max_score",
+ *                     description="Use default maximum score of 100 (1 or 0)",
+ *                     type="integer",
+ *                 ),
+ *              )
+ *         ),
+ *     ),
+ *     @OA\Response(response="200", description="Success"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->post('/course/{course_code}/learningpath/scorm', function (Request $req, Response $res, $args) use ($endpoint) {
+
+    $data = $req->getParsedBody();
+    $uploadedFiles = $req->getUploadedFiles() ? $_FILES : [];
+
+    Validator::validate($req,array_merge($data, $args, $uploadedFiles), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'scormUpload' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('array'),
+                new Assert\All([
+                    new Assert\NotBlank()
+                ]),
+            ]),
+            'use_max_score' => new Assert\Optional([new Assert\Type('numeric'), new Assert\PositiveOrZero()]),
+        ]
+    ]));
+
+    $token = $req->getAttribute("token");
+    $userId = $token['uid'];
+
+    $course = api_get_course_info($args['course_code']);
+
+
+    if (!$course)
+        throwException($req, '404', "Course with code '{$args['course_code']}' not found.");
+        
+    $manifest = lpScormImport($args['course_code'], $uploadedFiles);
+    if (!$manifest)
+        throwException($req, '422', "Scorm coud not be uploaded. Fail in lpScormImport");
+
+    $courseId = $course['real_id'];
+    $sessionId = 0;
+
+    $learningpaths = learnpath::getLpList($courseId, $sessionId);
+
+    $scormLp = $learningpaths[count($learningpaths) - 1];
+
+    $res->getBody()
+        ->write(json_encode($scormLp, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return
+        $res->withStatus(200);
+});
