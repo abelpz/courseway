@@ -7,693 +7,697 @@ use Chamilo\CourseBundle\Component\CourseCopy\CourseRestorer;
 
 
 function lpScormExport($corse_code, learnpath $lp)
-    {
-        api_set_more_memory_and_time_limits();
+{
+    api_set_more_memory_and_time_limits();
 
-        $_course = api_get_course_info($corse_code);
-        $course_id = $_course['real_id'];
-        // Create the zip handler (this will remain available throughout the method).
-        $archivePath = api_get_path(SYS_ARCHIVE_PATH);
-        $sys_course_path = api_get_path(SYS_COURSE_PATH);
-        $temp_dir_short = uniqid('scorm_export', true);
-        $temp_zip_dir = $archivePath.'/'.$temp_dir_short;
-        $temp_zip_file = $temp_zip_dir.'/'.md5(time()).'.zip';
-        $zip_folder = new PclZip($temp_zip_file);
-        $current_course_path = api_get_path(SYS_COURSE_PATH).api_get_course_path();
-        $root_path = $main_path = api_get_path(SYS_PATH);
-        $files_cleanup = [];
+    $_course = api_get_course_info($corse_code);
+    $course_id = $_course['real_id'];
+    // Create the zip handler (this will remain available throughout the method).
+    $archivePath = api_get_path(SYS_ARCHIVE_PATH);
+    $sys_course_path = api_get_path(SYS_COURSE_PATH);
+    $temp_dir_short = uniqid('scorm_export', true);
+    $temp_zip_dir = $archivePath . '/' . $temp_dir_short;
+    $temp_zip_file = $temp_zip_dir . '/' . md5(time()) . '.zip';
+    $zip_folder = new PclZip($temp_zip_file);
+    $current_course_path = api_get_path(SYS_COURSE_PATH) . api_get_course_path();
+    $root_path = $main_path = api_get_path(SYS_PATH);
+    $files_cleanup = [];
 
-        // Place to temporarily stash the zip file.
-        // create the temp dir if it doesn't exist
-        // or do a cleanup before creating the zip file.
-        if (!is_dir($temp_zip_dir)) {
-            mkdir($temp_zip_dir, api_get_permissions_for_new_directories());
-        } else {
-            // Cleanup: Check the temp dir for old files and delete them.
-            $handle = opendir($temp_zip_dir);
-            while (false !== ($file = readdir($handle))) {
-                if ($file != '.' && $file != '..') {
-                    unlink("$temp_zip_dir/$file");
-                }
+    // Place to temporarily stash the zip file.
+    // create the temp dir if it doesn't exist
+    // or do a cleanup before creating the zip file.
+    if (!is_dir($temp_zip_dir)) {
+        mkdir($temp_zip_dir, api_get_permissions_for_new_directories());
+    } else {
+        // Cleanup: Check the temp dir for old files and delete them.
+        $handle = opendir($temp_zip_dir);
+        while (false !== ($file = readdir($handle))) {
+            if ($file != '.' && $file != '..') {
+                unlink("$temp_zip_dir/$file");
             }
-            closedir($handle);
         }
-        $zip_files = $zip_files_abs = $zip_files_dist = [];
-        if (is_dir($current_course_path.'/scorm/'.$lp->path) &&
-            is_file($current_course_path.'/scorm/'.$lp->path.'/imsmanifest.xml')
-        ) {
-            // Remove the possible . at the end of the path.
-            $dest_path_to_lp = substr($lp->path, -1) == '.' ? substr($lp->path, 0, -1) : $lp->path;
-            $dest_path_to_scorm_folder = str_replace('//', '/', $temp_zip_dir.'/scorm/'.$dest_path_to_lp);
-            mkdir(
-                $dest_path_to_scorm_folder,
-                api_get_permissions_for_new_directories(),
-                true
-            );
-            copyr(
-                $current_course_path.'/scorm/'.$lp->path,
-                $dest_path_to_scorm_folder,
-                ['imsmanifest'],
-                $zip_files
-            );
-        }
-
-        // Build a dummy imsmanifest structure.
-        // Do not add to the zip yet (we still need it).
-        // This structure is developed following regulations for SCORM 1.2 packaging in the SCORM 1.2 Content
-        // Aggregation Model official document, section "2.3 Content Packaging".
-        // We are going to build a UTF-8 encoded manifest.
-        // Later we will recode it to the desired (and supported) encoding.
-        $xmldoc = new DOMDocument('1.0');
-        $root = $xmldoc->createElement('manifest');
-        $root->setAttribute('identifier', 'SingleCourseManifest');
-        $root->setAttribute('version', '1.1');
-        $root->setAttribute('xmlns', 'http://www.imsproject.org/xsd/imscp_rootv1p1p2');
-        $root->setAttribute('xmlns:adlcp', 'http://www.adlnet.org/xsd/adlcp_rootv1p2');
-        $root->setAttribute('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
-        $root->setAttribute(
-            'xsi:schemaLocation',
-            'http://www.imsproject.org/xsd/imscp_rootv1p1p2 imscp_rootv1p1p2.xsd http://www.imsglobal.org/xsd/imsmd_rootv1p2p1 imsmd_rootv1p2p1.xsd http://www.adlnet.org/xsd/adlcp_rootv1p2 adlcp_rootv1p2.xsd'
+        closedir($handle);
+    }
+    $zip_files = $zip_files_abs = $zip_files_dist = [];
+    if (
+        is_dir($current_course_path . '/scorm/' . $lp->path) &&
+        is_file($current_course_path . '/scorm/' . $lp->path . '/imsmanifest.xml')
+    ) {
+        // Remove the possible . at the end of the path.
+        $dest_path_to_lp = substr($lp->path, -1) == '.' ? substr($lp->path, 0, -1) : $lp->path;
+        $dest_path_to_scorm_folder = str_replace('//', '/', $temp_zip_dir . '/scorm/' . $dest_path_to_lp);
+        mkdir(
+            $dest_path_to_scorm_folder,
+            api_get_permissions_for_new_directories(),
+            true
         );
-        // Build mandatory sub-root container elements.
-        $metadata = $xmldoc->createElement('metadata');
-        $md_schema = $xmldoc->createElement('schema', 'ADL SCORM');
-        $metadata->appendChild($md_schema);
-        $md_schemaversion = $xmldoc->createElement('schemaversion', '1.2');
-        $metadata->appendChild($md_schemaversion);
-        $root->appendChild($metadata);
+        copyr(
+            $current_course_path . '/scorm/' . $lp->path,
+            $dest_path_to_scorm_folder,
+            ['imsmanifest'],
+            $zip_files
+        );
+    }
 
-        $organizations = $xmldoc->createElement('organizations');
-        $resources = $xmldoc->createElement('resources');
+    // Build a dummy imsmanifest structure.
+    // Do not add to the zip yet (we still need it).
+    // This structure is developed following regulations for SCORM 1.2 packaging in the SCORM 1.2 Content
+    // Aggregation Model official document, section "2.3 Content Packaging".
+    // We are going to build a UTF-8 encoded manifest.
+    // Later we will recode it to the desired (and supported) encoding.
+    $xmldoc = new DOMDocument('1.0');
+    $root = $xmldoc->createElement('manifest');
+    $root->setAttribute('identifier', 'SingleCourseManifest');
+    $root->setAttribute('version', '1.1');
+    $root->setAttribute('xmlns', 'http://www.imsproject.org/xsd/imscp_rootv1p1p2');
+    $root->setAttribute('xmlns:adlcp', 'http://www.adlnet.org/xsd/adlcp_rootv1p2');
+    $root->setAttribute('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
+    $root->setAttribute(
+        'xsi:schemaLocation',
+        'http://www.imsproject.org/xsd/imscp_rootv1p1p2 imscp_rootv1p1p2.xsd http://www.imsglobal.org/xsd/imsmd_rootv1p2p1 imsmd_rootv1p2p1.xsd http://www.adlnet.org/xsd/adlcp_rootv1p2 adlcp_rootv1p2.xsd'
+    );
+    // Build mandatory sub-root container elements.
+    $metadata = $xmldoc->createElement('metadata');
+    $md_schema = $xmldoc->createElement('schema', 'ADL SCORM');
+    $metadata->appendChild($md_schema);
+    $md_schemaversion = $xmldoc->createElement('schemaversion', '1.2');
+    $metadata->appendChild($md_schemaversion);
+    $root->appendChild($metadata);
 
-        // Build the only organization we will use in building our learnpaths.
-        $organizations->setAttribute('default', 'chamilo_scorm_export');
-        $organization = $xmldoc->createElement('organization');
-        $organization->setAttribute('identifier', 'chamilo_scorm_export');
-        // To set the title of the SCORM entity (=organization), we take the name given
-        // in Chamilo and convert it to HTML entities using the Chamilo charset (not the
-        // learning path charset) as it is the encoding that defines how it is stored
-        // in the database. Then we convert it to HTML entities again as the "&" character
-        // alone is not authorized in XML (must be &amp;).
-        // The title is then decoded twice when extracting (see scorm::parse_manifest).
-        $org_title = $xmldoc->createElement('title', api_utf8_encode($lp->get_name()));
-        $organization->appendChild($org_title);
-        $folder_name = 'document';
+    $organizations = $xmldoc->createElement('organizations');
+    $resources = $xmldoc->createElement('resources');
 
-        // Removes the learning_path/scorm_folder path when exporting see #4841
-        $path_to_remove = '';
-        $path_to_replace = '';
-        $result = $lp->generate_lp_folder($_course);
-        if (isset($result['dir']) && strpos($result['dir'], 'learning_path')) {
-            $path_to_remove = 'document'.$result['dir'];
-            $path_to_replace = $folder_name.'/';
-        }
+    // Build the only organization we will use in building our learnpaths.
+    $organizations->setAttribute('default', 'chamilo_scorm_export');
+    $organization = $xmldoc->createElement('organization');
+    $organization->setAttribute('identifier', 'chamilo_scorm_export');
+    // To set the title of the SCORM entity (=organization), we take the name given
+    // in Chamilo and convert it to HTML entities using the Chamilo charset (not the
+    // learning path charset) as it is the encoding that defines how it is stored
+    // in the database. Then we convert it to HTML entities again as the "&" character
+    // alone is not authorized in XML (must be &amp;).
+    // The title is then decoded twice when extracting (see scorm::parse_manifest).
+    $org_title = $xmldoc->createElement('title', api_utf8_encode($lp->get_name()));
+    $organization->appendChild($org_title);
+    $folder_name = 'document';
 
-        // Fixes chamilo scorm exports
-        if ($lp->ref === 'chamilo_scorm_export') {
-            $path_to_remove = 'scorm/'.$lp->path.'/document/';
-        }
+    // Removes the learning_path/scorm_folder path when exporting see #4841
+    $path_to_remove = '';
+    $path_to_replace = '';
+    $result = $lp->generate_lp_folder($_course);
+    if (isset($result['dir']) && strpos($result['dir'], 'learning_path')) {
+        $path_to_remove = 'document' . $result['dir'];
+        $path_to_replace = $folder_name . '/';
+    }
 
-        // For each element, add it to the imsmanifest structure, then add it to the zip.
-        $link_updates = [];
-        $links_to_create = [];
-        foreach ($lp->ordered_items as $index => $itemId) {
-            /** @var learnpathItem $item */
-            $item = $lp->items[$itemId];
-            if (!in_array($item->type, [TOOL_QUIZ, TOOL_FORUM, TOOL_THREAD, TOOL_LINK, TOOL_STUDENTPUBLICATION])) {
-                // Get included documents from this item.
-                if ($item->type === 'sco') {
-                    $inc_docs = $item->get_resources_from_source(
-                        null,
-                        $current_course_path.'/scorm/'.$lp->path.'/'.$item->get_path()
-                    );
-                } else {
-                    $inc_docs = $item->get_resources_from_source();
-                }
+    // Fixes chamilo scorm exports
+    if ($lp->ref === 'chamilo_scorm_export') {
+        $path_to_remove = 'scorm/' . $lp->path . '/document/';
+    }
 
-                // Give a child element <item> to the <organization> element.
-                $my_item_id = $item->get_id();
-                $my_item = $xmldoc->createElement('item');
-                $my_item->setAttribute('identifier', 'ITEM_'.$my_item_id);
-                $my_item->setAttribute('identifierref', 'RESOURCE_'.$my_item_id);
-                $my_item->setAttribute('isvisible', 'true');
-                // Give a child element <title> to the <item> element.
-                $my_title = $xmldoc->createElement(
-                    'title',
-                    htmlspecialchars(
-                        api_utf8_encode($item->get_title()),
-                        ENT_QUOTES,
-                        'UTF-8'
-                    )
+    // For each element, add it to the imsmanifest structure, then add it to the zip.
+    $link_updates = [];
+    $links_to_create = [];
+    foreach ($lp->ordered_items as $index => $itemId) {
+        /** @var learnpathItem $item */
+        $item = $lp->items[$itemId];
+        if (!in_array($item->type, [TOOL_QUIZ, TOOL_FORUM, TOOL_THREAD, TOOL_LINK, TOOL_STUDENTPUBLICATION])) {
+            // Get included documents from this item.
+            if ($item->type === 'sco') {
+                $inc_docs = $item->get_resources_from_source(
+                    null,
+                    $current_course_path . '/scorm/' . $lp->path . '/' . $item->get_path()
                 );
-                $my_item->appendChild($my_title);
-                // Give a child element <adlcp:prerequisites> to the <item> element.
-                $my_prereqs = $xmldoc->createElement(
-                    'adlcp:prerequisites',
-                    $lp->get_scorm_prereq_string($my_item_id)
-                );
-                $my_prereqs->setAttribute('type', 'aicc_script');
-                $my_item->appendChild($my_prereqs);
-                // Give a child element <adlcp:maxtimeallowed> to the <item> element - not yet supported.
-                //$xmldoc->createElement('adlcp:maxtimeallowed','');
-                // Give a child element <adlcp:timelimitaction> to the <item> element - not yet supported.
-                //$xmldoc->createElement('adlcp:timelimitaction','');
-                // Give a child element <adlcp:datafromlms> to the <item> element - not yet supported.
-                //$xmldoc->createElement('adlcp:datafromlms','');
-                // Give a child element <adlcp:masteryscore> to the <item> element.
-                $my_masteryscore = $xmldoc->createElement('adlcp:masteryscore', $item->get_mastery_score());
-                $my_item->appendChild($my_masteryscore);
+            } else {
+                $inc_docs = $item->get_resources_from_source();
+            }
 
-                // Attach this item to the organization element or hits parent if there is one.
-                if (!empty($item->parent) && $item->parent != 0) {
-                    $children = $organization->childNodes;
-                    $possible_parent = $lp->get_scorm_xml_node($children, 'ITEM_'.$item->parent);
-                    if (is_object($possible_parent)) {
-                        $possible_parent->appendChild($my_item);
-                    } else {
-                        if ($lp->debug > 0) {
-                            error_log('Parent ITEM_'.$item->parent.' of item ITEM_'.$my_item_id.' not found');
-                        }
-                    }
+            // Give a child element <item> to the <organization> element.
+            $my_item_id = $item->get_id();
+            $my_item = $xmldoc->createElement('item');
+            $my_item->setAttribute('identifier', 'ITEM_' . $my_item_id);
+            $my_item->setAttribute('identifierref', 'RESOURCE_' . $my_item_id);
+            $my_item->setAttribute('isvisible', 'true');
+            // Give a child element <title> to the <item> element.
+            $my_title = $xmldoc->createElement(
+                'title',
+                htmlspecialchars(
+                    api_utf8_encode($item->get_title()),
+                    ENT_QUOTES,
+                    'UTF-8'
+                )
+            );
+            $my_item->appendChild($my_title);
+            // Give a child element <adlcp:prerequisites> to the <item> element.
+            $my_prereqs = $xmldoc->createElement(
+                'adlcp:prerequisites',
+                $lp->get_scorm_prereq_string($my_item_id)
+            );
+            $my_prereqs->setAttribute('type', 'aicc_script');
+            $my_item->appendChild($my_prereqs);
+            // Give a child element <adlcp:maxtimeallowed> to the <item> element - not yet supported.
+            //$xmldoc->createElement('adlcp:maxtimeallowed','');
+            // Give a child element <adlcp:timelimitaction> to the <item> element - not yet supported.
+            //$xmldoc->createElement('adlcp:timelimitaction','');
+            // Give a child element <adlcp:datafromlms> to the <item> element - not yet supported.
+            //$xmldoc->createElement('adlcp:datafromlms','');
+            // Give a child element <adlcp:masteryscore> to the <item> element.
+            $my_masteryscore = $xmldoc->createElement('adlcp:masteryscore', $item->get_mastery_score());
+            $my_item->appendChild($my_masteryscore);
+
+            // Attach this item to the organization element or hits parent if there is one.
+            if (!empty($item->parent) && $item->parent != 0) {
+                $children = $organization->childNodes;
+                $possible_parent = $lp->get_scorm_xml_node($children, 'ITEM_' . $item->parent);
+                if (is_object($possible_parent)) {
+                    $possible_parent->appendChild($my_item);
                 } else {
                     if ($lp->debug > 0) {
-                        error_log('No parent');
-                    }
-                    $organization->appendChild($my_item);
-                }
-
-                // Get the path of the file(s) from the course directory root.
-                $my_file_path = $item->get_file_path('scorm/'.$lp->path.'/');
-                $my_xml_file_path = $my_file_path;
-                if (!empty($path_to_remove)) {
-                    // From docs
-                    $my_xml_file_path = str_replace($path_to_remove, $path_to_replace, $my_file_path);
-
-                    // From quiz
-                    if ($lp->ref === 'chamilo_scorm_export') {
-                        $path_to_remove = 'scorm/'.$lp->path.'/';
-                        $my_xml_file_path = str_replace($path_to_remove, '', $my_file_path);
+                        error_log('Parent ITEM_' . $item->parent . ' of item ITEM_' . $my_item_id . ' not found');
                     }
                 }
-
-                $my_sub_dir = dirname($my_file_path);
-                $my_sub_dir = str_replace('\\', '/', $my_sub_dir);
-                $my_xml_sub_dir = $my_sub_dir;
-                // Give a <resource> child to the <resources> element
-                $my_resource = $xmldoc->createElement('resource');
-                $my_resource->setAttribute('identifier', 'RESOURCE_'.$item->get_id());
-                $my_resource->setAttribute('type', 'webcontent');
-                $my_resource->setAttribute('href', $my_xml_file_path);
-                // adlcp:scormtype can be either 'sco' or 'asset'.
-                if ($item->type === 'sco') {
-                    $my_resource->setAttribute('adlcp:scormtype', 'sco');
-                } else {
-                    $my_resource->setAttribute('adlcp:scormtype', 'asset');
+            } else {
+                if ($lp->debug > 0) {
+                    error_log('No parent');
                 }
-                // xml:base is the base directory to find the files declared in this resource.
-                $my_resource->setAttribute('xml:base', '');
-                // Give a <file> child to the <resource> element.
-                $my_file = $xmldoc->createElement('file');
-                $my_file->setAttribute('href', $my_xml_file_path);
-                $my_resource->appendChild($my_file);
+                $organization->appendChild($my_item);
+            }
 
-                // Dependency to other files - not yet supported.
-                $i = 1;
-                if ($inc_docs) {
-                    foreach ($inc_docs as $doc_info) {
-                        if (count($doc_info) < 1 || empty($doc_info[0])) {
-                            continue;
-                        }
-                        $my_dep = $xmldoc->createElement('resource');
-                        $res_id = 'RESOURCE_'.$item->get_id().'_'.$i;
-                        $my_dep->setAttribute('identifier', $res_id);
-                        $my_dep->setAttribute('type', 'webcontent');
-                        $my_dep->setAttribute('adlcp:scormtype', 'asset');
-                        $my_dep_file = $xmldoc->createElement('file');
-                        // Check type of URL.
-                        if ($doc_info[1] == 'remote') {
-                            // Remote file. Save url as is.
-                            $my_dep_file->setAttribute('href', $doc_info[0]);
-                            $my_dep->setAttribute('xml:base', '');
-                        } elseif ($doc_info[1] === 'local') {
-                            switch ($doc_info[2]) {
-                                case 'url':
-                                    // Local URL - save path as url for now, don't zip file.
-                                    $abs_path = api_get_path(SYS_PATH).
-                                        str_replace(api_get_path(WEB_PATH), '', $doc_info[0]);
-                                    $current_dir = dirname($abs_path);
-                                    $current_dir = str_replace('\\', '/', $current_dir);
-                                    $file_path = realpath($abs_path);
-                                    $file_path = str_replace('\\', '/', $file_path);
+            // Get the path of the file(s) from the course directory root.
+            $my_file_path = $item->get_file_path('scorm/' . $lp->path . '/');
+            $my_xml_file_path = $my_file_path;
+            if (!empty($path_to_remove)) {
+                // From docs
+                $my_xml_file_path = str_replace($path_to_remove, $path_to_replace, $my_file_path);
+
+                // From quiz
+                if ($lp->ref === 'chamilo_scorm_export') {
+                    $path_to_remove = 'scorm/' . $lp->path . '/';
+                    $my_xml_file_path = str_replace($path_to_remove, '', $my_file_path);
+                }
+            }
+
+            $my_sub_dir = dirname($my_file_path);
+            $my_sub_dir = str_replace('\\', '/', $my_sub_dir);
+            $my_xml_sub_dir = $my_sub_dir;
+            // Give a <resource> child to the <resources> element
+            $my_resource = $xmldoc->createElement('resource');
+            $my_resource->setAttribute('identifier', 'RESOURCE_' . $item->get_id());
+            $my_resource->setAttribute('type', 'webcontent');
+            $my_resource->setAttribute('href', $my_xml_file_path);
+            // adlcp:scormtype can be either 'sco' or 'asset'.
+            if ($item->type === 'sco') {
+                $my_resource->setAttribute('adlcp:scormtype', 'sco');
+            } else {
+                $my_resource->setAttribute('adlcp:scormtype', 'asset');
+            }
+            // xml:base is the base directory to find the files declared in this resource.
+            $my_resource->setAttribute('xml:base', '');
+            // Give a <file> child to the <resource> element.
+            $my_file = $xmldoc->createElement('file');
+            $my_file->setAttribute('href', $my_xml_file_path);
+            $my_resource->appendChild($my_file);
+
+            // Dependency to other files - not yet supported.
+            $i = 1;
+            if ($inc_docs) {
+                foreach ($inc_docs as $doc_info) {
+                    if (count($doc_info) < 1 || empty($doc_info[0])) {
+                        continue;
+                    }
+                    $my_dep = $xmldoc->createElement('resource');
+                    $res_id = 'RESOURCE_' . $item->get_id() . '_' . $i;
+                    $my_dep->setAttribute('identifier', $res_id);
+                    $my_dep->setAttribute('type', 'webcontent');
+                    $my_dep->setAttribute('adlcp:scormtype', 'asset');
+                    $my_dep_file = $xmldoc->createElement('file');
+                    // Check type of URL.
+                    if ($doc_info[1] == 'remote') {
+                        // Remote file. Save url as is.
+                        $my_dep_file->setAttribute('href', $doc_info[0]);
+                        $my_dep->setAttribute('xml:base', '');
+                    } elseif ($doc_info[1] === 'local') {
+                        switch ($doc_info[2]) {
+                            case 'url':
+                                // Local URL - save path as url for now, don't zip file.
+                                $abs_path = api_get_path(SYS_PATH) .
+                                    str_replace(api_get_path(WEB_PATH), '', $doc_info[0]);
+                                $current_dir = dirname($abs_path);
+                                $current_dir = str_replace('\\', '/', $current_dir);
+                                $file_path = realpath($abs_path);
+                                $file_path = str_replace('\\', '/', $file_path);
+                                $my_dep_file->setAttribute('href', $file_path);
+                                $my_dep->setAttribute('xml:base', '');
+                                if (strstr($file_path, $main_path) !== false) {
+                                    // The calculated real path is really inside Chamilo's root path.
+                                    // Reduce file path to what's under the DocumentRoot.
+                                    $replace = $file_path;
+                                    $file_path = substr($file_path, strlen($root_path) - 1);
+                                    $destinationFile = $file_path;
+
+                                    if (strstr($file_path, 'upload/users') !== false) {
+                                        $pos = strpos($file_path, 'my_files/');
+                                        if ($pos !== false) {
+                                            $onlyDirectory = str_replace(
+                                                'upload/users/',
+                                                '',
+                                                substr($file_path, $pos, strlen($file_path))
+                                            );
+                                        }
+                                        $replace = './' . $onlyDirectory;
+                                        $destinationFile = $replace;
+                                    }
+
+                                    if (strpos($file_path, '/web') === 0) {
+                                        $replace = str_replace('/web', 'web', $file_path);
+                                    }
+
+                                    $zip_files_abs[] = $file_path;
+                                    $link_updates[$my_file_path][] = [
+                                        'orig' => $doc_info[0],
+                                        'dest' => $destinationFile,
+                                        'replace' => $replace,
+                                    ];
                                     $my_dep_file->setAttribute('href', $file_path);
                                     $my_dep->setAttribute('xml:base', '');
-                                    if (strstr($file_path, $main_path) !== false) {
-                                        // The calculated real path is really inside Chamilo's root path.
-                                        // Reduce file path to what's under the DocumentRoot.
-                                        $replace = $file_path;
-                                        $file_path = substr($file_path, strlen($root_path) - 1);
-                                        $destinationFile = $file_path;
-
-                                        if (strstr($file_path, 'upload/users') !== false) {
-                                            $pos = strpos($file_path, 'my_files/');
-                                            if ($pos !== false) {
-                                                $onlyDirectory = str_replace(
-                                                    'upload/users/',
-                                                    '',
-                                                    substr($file_path, $pos, strlen($file_path))
-                                                );
-                                            }
-                                            $replace = './'.$onlyDirectory;
-                                            $destinationFile = $replace;
-                                        }
-
-                                        if (strpos($file_path, '/web') === 0) {
-                                            $replace = str_replace('/web', 'web', $file_path);
-                                        }
-
-                                        $zip_files_abs[] = $file_path;
+                                } elseif (empty($file_path)) {
+                                    $file_path = $_SERVER['DOCUMENT_ROOT'] . $abs_path;
+                                    $file_path = str_replace('//', '/', $file_path);
+                                    if (file_exists($file_path)) {
+                                        // We get the relative path.
+                                        $file_path = substr($file_path, strlen($current_dir));
+                                        $zip_files[] = $my_sub_dir . '/' . $file_path;
                                         $link_updates[$my_file_path][] = [
                                             'orig' => $doc_info[0],
-                                            'dest' => $destinationFile,
-                                            'replace' => $replace,
+                                            'dest' => $file_path,
                                         ];
                                         $my_dep_file->setAttribute('href', $file_path);
                                         $my_dep->setAttribute('xml:base', '');
-                                    } elseif (empty($file_path)) {
-                                        $file_path = $_SERVER['DOCUMENT_ROOT'].$abs_path;
-                                        $file_path = str_replace('//', '/', $file_path);
-                                        if (file_exists($file_path)) {
+                                    }
+                                }
+                                break;
+                            case 'abs':
+                                // Absolute path from DocumentRoot. Save file and leave path as is in the zip.
+                                $my_dep_file->setAttribute('href', $doc_info[0]);
+                                $my_dep->setAttribute('xml:base', '');
+
+                                // The next lines fix a bug when using the "subdir" mode of Chamilo, whereas
+                                // an image path would be constructed as /var/www/subdir/subdir/img/foo.bar
+                                $abs_img_path_without_subdir = $doc_info[0];
+                                $relp = api_get_path(REL_PATH); // The url-append config param.
+                                $pos = strpos($abs_img_path_without_subdir, $relp);
+                                if ($pos === 0) {
+                                    $abs_img_path_without_subdir = trim('/' . substr($abs_img_path_without_subdir, strlen($relp)));
+                                }
+
+                                $file_path = realpath(api_get_path(SYS_APP_PATH) . $abs_img_path_without_subdir);
+                                $file_path = str_replace(['\\', '//'], '/', $file_path);
+
+                                // Prepare the current directory path (until just under 'document') with a trailing slash.
+                                $cur_path = substr($current_course_path, -1) == '/' ? $current_course_path : $current_course_path . '/';
+                                // Check if the current document is in that path.
+                                if (strstr($file_path, $cur_path) !== false) {
+                                    $destinationFile = substr($file_path, strlen($cur_path));
+                                    $filePathNoCoursePart = substr($file_path, strlen($cur_path));
+
+                                    $fileToTest = $cur_path . $my_file_path;
+                                    if (!empty($path_to_remove)) {
+                                        $fileToTest = str_replace(
+                                            $path_to_remove . '/',
+                                            $path_to_replace,
+                                            $cur_path . $my_file_path
+                                        );
+                                    }
+
+                                    $relative_path = api_get_relative_path($fileToTest, $file_path);
+
+                                    // Put the current document in the zip (this array is the array
+                                    // that will manage documents already in the course folder - relative).
+                                    $zip_files[] = $filePathNoCoursePart;
+                                    // Update the links to the current document in the
+                                    // containing document (make them relative).
+                                    $link_updates[$my_file_path][] = [
+                                        'orig' => $doc_info[0],
+                                        'dest' => $destinationFile,
+                                        'replace' => $relative_path,
+                                    ];
+
+                                    $my_dep_file->setAttribute('href', $file_path);
+                                    $my_dep->setAttribute('xml:base', '');
+                                } elseif (strstr($file_path, $main_path) !== false) {
+                                    // The calculated real path is really inside Chamilo's root path.
+                                    // Reduce file path to what's under the DocumentRoot.
+                                    $file_path = substr($file_path, strlen($root_path));
+                                    $zip_files_abs[] = $file_path;
+                                    $link_updates[$my_file_path][] = ['orig' => $doc_info[0], 'dest' => $file_path];
+                                    $my_dep_file->setAttribute('href', 'document/' . $file_path);
+                                    $my_dep->setAttribute('xml:base', '');
+                                } elseif (empty($file_path)) {
+                                    // Probably this is an image inside "/main" directory
+                                    $file_path = api_get_path(SYS_PATH) . $abs_img_path_without_subdir;
+                                    $abs_path = api_get_path(SYS_PATH) . str_replace(api_get_path(WEB_PATH), '', $doc_info[0]);
+
+                                    if (file_exists($file_path)) {
+                                        $pos = strpos($file_path, 'main/default_course_document/');
+                                        if ($pos !== false) {
                                             // We get the relative path.
-                                            $file_path = substr($file_path, strlen($current_dir));
-                                            $zip_files[] = $my_sub_dir.'/'.$file_path;
+                                            $onlyDirectory = str_replace(
+                                                'main/default_course_document/',
+                                                '',
+                                                substr($file_path, $pos, strlen($file_path))
+                                            );
+
+                                            $destinationFile = 'default_course_document/' . $onlyDirectory;
+                                            $fileAbs = substr($file_path, strlen(api_get_path(SYS_PATH)));
+                                            $zip_files_abs[] = $fileAbs;
                                             $link_updates[$my_file_path][] = [
                                                 'orig' => $doc_info[0],
-                                                'dest' => $file_path,
+                                                'dest' => $destinationFile,
                                             ];
-                                            $my_dep_file->setAttribute('href', $file_path);
+                                            $my_dep_file->setAttribute('href', 'document/' . $destinationFile);
                                             $my_dep->setAttribute('xml:base', '');
                                         }
                                     }
-                                    break;
-                                case 'abs':
-                                    // Absolute path from DocumentRoot. Save file and leave path as is in the zip.
-                                    $my_dep_file->setAttribute('href', $doc_info[0]);
-                                    $my_dep->setAttribute('xml:base', '');
-
-                                    // The next lines fix a bug when using the "subdir" mode of Chamilo, whereas
-                                    // an image path would be constructed as /var/www/subdir/subdir/img/foo.bar
-                                    $abs_img_path_without_subdir = $doc_info[0];
-                                    $relp = api_get_path(REL_PATH); // The url-append config param.
-                                    $pos = strpos($abs_img_path_without_subdir, $relp);
-                                    if ($pos === 0) {
-                                        $abs_img_path_without_subdir = trim('/'.substr($abs_img_path_without_subdir, strlen($relp)));
-                                    }
-
-                                    $file_path = realpath(api_get_path(SYS_APP_PATH).$abs_img_path_without_subdir);
-                                    $file_path = str_replace(['\\', '//'], '/', $file_path);
-
-                                    // Prepare the current directory path (until just under 'document') with a trailing slash.
-                                    $cur_path = substr($current_course_path, -1) == '/' ? $current_course_path : $current_course_path.'/';
-                                    // Check if the current document is in that path.
-                                    if (strstr($file_path, $cur_path) !== false) {
-                                        $destinationFile = substr($file_path, strlen($cur_path));
-                                        $filePathNoCoursePart = substr($file_path, strlen($cur_path));
-
-                                        $fileToTest = $cur_path.$my_file_path;
-                                        if (!empty($path_to_remove)) {
-                                            $fileToTest = str_replace(
-                                                $path_to_remove.'/',
-                                                $path_to_replace,
-                                                $cur_path.$my_file_path
-                                            );
-                                        }
-
-                                        $relative_path = api_get_relative_path($fileToTest, $file_path);
-
-                                        // Put the current document in the zip (this array is the array
-                                        // that will manage documents already in the course folder - relative).
-                                        $zip_files[] = $filePathNoCoursePart;
-                                        // Update the links to the current document in the
-                                        // containing document (make them relative).
-                                        $link_updates[$my_file_path][] = [
-                                            'orig' => $doc_info[0],
-                                            'dest' => $destinationFile,
-                                            'replace' => $relative_path,
-                                        ];
-
-                                        $my_dep_file->setAttribute('href', $file_path);
-                                        $my_dep->setAttribute('xml:base', '');
-                                    } elseif (strstr($file_path, $main_path) !== false) {
+                                }
+                                break;
+                            case 'rel':
+                                // Path relative to the current document.
+                                // Save xml:base as current document's directory and save file in zip as subdir.file_path
+                                if (substr($doc_info[0], 0, 2) === '..') {
+                                    // Relative path going up.
+                                    $current_dir = dirname($current_course_path . '/' . $item->get_file_path()) . '/';
+                                    $current_dir = str_replace('\\', '/', $current_dir);
+                                    $file_path = realpath($current_dir . $doc_info[0]);
+                                    $file_path = str_replace('\\', '/', $file_path);
+                                    if (strstr($file_path, $main_path) !== false) {
                                         // The calculated real path is really inside Chamilo's root path.
                                         // Reduce file path to what's under the DocumentRoot.
                                         $file_path = substr($file_path, strlen($root_path));
                                         $zip_files_abs[] = $file_path;
                                         $link_updates[$my_file_path][] = ['orig' => $doc_info[0], 'dest' => $file_path];
-                                        $my_dep_file->setAttribute('href', 'document/'.$file_path);
+                                        $my_dep_file->setAttribute('href', 'document/' . $file_path);
                                         $my_dep->setAttribute('xml:base', '');
-                                    } elseif (empty($file_path)) {
-                                        // Probably this is an image inside "/main" directory
-                                        $file_path = api_get_path(SYS_PATH).$abs_img_path_without_subdir;
-                                        $abs_path = api_get_path(SYS_PATH).str_replace(api_get_path(WEB_PATH), '', $doc_info[0]);
-
-                                        if (file_exists($file_path)) {
-                                            $pos = strpos($file_path, 'main/default_course_document/');
-                                            if ($pos !== false) {
-                                                // We get the relative path.
-                                                $onlyDirectory = str_replace(
-                                                    'main/default_course_document/',
-                                                    '',
-                                                    substr($file_path, $pos, strlen($file_path))
-                                                );
-
-                                                $destinationFile = 'default_course_document/'.$onlyDirectory;
-                                                $fileAbs = substr($file_path, strlen(api_get_path(SYS_PATH)));
-                                                $zip_files_abs[] = $fileAbs;
-                                                $link_updates[$my_file_path][] = [
-                                                    'orig' => $doc_info[0],
-                                                    'dest' => $destinationFile,
-                                                ];
-                                                $my_dep_file->setAttribute('href', 'document/'.$destinationFile);
-                                                $my_dep->setAttribute('xml:base', '');
-                                            }
-                                        }
                                     }
-                                    break;
-                                case 'rel':
-                                    // Path relative to the current document.
-                                    // Save xml:base as current document's directory and save file in zip as subdir.file_path
-                                    if (substr($doc_info[0], 0, 2) === '..') {
-                                        // Relative path going up.
-                                        $current_dir = dirname($current_course_path.'/'.$item->get_file_path()).'/';
-                                        $current_dir = str_replace('\\', '/', $current_dir);
-                                        $file_path = realpath($current_dir.$doc_info[0]);
-                                        $file_path = str_replace('\\', '/', $file_path);
-                                        if (strstr($file_path, $main_path) !== false) {
-                                            // The calculated real path is really inside Chamilo's root path.
-                                            // Reduce file path to what's under the DocumentRoot.
-                                            $file_path = substr($file_path, strlen($root_path));
-                                            $zip_files_abs[] = $file_path;
-                                            $link_updates[$my_file_path][] = ['orig' => $doc_info[0], 'dest' => $file_path];
-                                            $my_dep_file->setAttribute('href', 'document/'.$file_path);
-                                            $my_dep->setAttribute('xml:base', '');
-                                        }
-                                    } else {
-                                        $zip_files[] = $my_sub_dir.'/'.$doc_info[0];
-                                        $my_dep_file->setAttribute('href', $doc_info[0]);
-                                        $my_dep->setAttribute('xml:base', $my_xml_sub_dir);
-                                    }
-                                    break;
-                                default:
+                                } else {
+                                    $zip_files[] = $my_sub_dir . '/' . $doc_info[0];
                                     $my_dep_file->setAttribute('href', $doc_info[0]);
-                                    $my_dep->setAttribute('xml:base', '');
-                                    break;
-                            }
+                                    $my_dep->setAttribute('xml:base', $my_xml_sub_dir);
+                                }
+                                break;
+                            default:
+                                $my_dep_file->setAttribute('href', $doc_info[0]);
+                                $my_dep->setAttribute('xml:base', '');
+                                break;
                         }
-                        $my_dep->appendChild($my_dep_file);
-                        $resources->appendChild($my_dep);
-                        $dependency = $xmldoc->createElement('dependency');
-                        $dependency->setAttribute('identifierref', $res_id);
-                        $my_resource->appendChild($dependency);
-                        $i++;
                     }
+                    $my_dep->appendChild($my_dep_file);
+                    $resources->appendChild($my_dep);
+                    $dependency = $xmldoc->createElement('dependency');
+                    $dependency->setAttribute('identifierref', $res_id);
+                    $my_resource->appendChild($dependency);
+                    $i++;
                 }
-                $resources->appendChild($my_resource);
-                $zip_files[] = $my_file_path;
-            } else {
-                // If the item is a quiz or a link or whatever non-exportable, we include a step indicating it.
-                switch ($item->type) {
-                    case TOOL_LINK:
-                        $my_item = $xmldoc->createElement('item');
-                        $my_item->setAttribute('identifier', 'ITEM_'.$item->get_id());
-                        $my_item->setAttribute('identifierref', 'RESOURCE_'.$item->get_id());
-                        $my_item->setAttribute('isvisible', 'true');
-                        // Give a child element <title> to the <item> element.
-                        $my_title = $xmldoc->createElement(
-                            'title',
-                            htmlspecialchars(
-                                api_utf8_encode($item->get_title()),
-                                ENT_QUOTES,
-                                'UTF-8'
-                            )
-                        );
-                        $my_item->appendChild($my_title);
-                        // Give a child element <adlcp:prerequisites> to the <item> element.
-                        $my_prereqs = $xmldoc->createElement('adlcp:prerequisites', $item->get_prereq_string());
-                        $my_prereqs->setAttribute('type', 'aicc_script');
-                        $my_item->appendChild($my_prereqs);
-                        // Give a child element <adlcp:maxtimeallowed> to the <item> element - not yet supported.
-                        //$xmldoc->createElement('adlcp:maxtimeallowed', '');
-                        // Give a child element <adlcp:timelimitaction> to the <item> element - not yet supported.
-                        //$xmldoc->createElement('adlcp:timelimitaction', '');
-                        // Give a child element <adlcp:datafromlms> to the <item> element - not yet supported.
-                        //$xmldoc->createElement('adlcp:datafromlms', '');
-                        // Give a child element <adlcp:masteryscore> to the <item> element.
-                        $my_masteryscore = $xmldoc->createElement('adlcp:masteryscore', $item->get_mastery_score());
-                        $my_item->appendChild($my_masteryscore);
+            }
+            $resources->appendChild($my_resource);
+            $zip_files[] = $my_file_path;
+        } else {
+            // If the item is a quiz or a link or whatever non-exportable, we include a step indicating it.
+            switch ($item->type) {
+                case TOOL_LINK:
+                    $my_item = $xmldoc->createElement('item');
+                    $my_item->setAttribute('identifier', 'ITEM_' . $item->get_id());
+                    $my_item->setAttribute('identifierref', 'RESOURCE_' . $item->get_id());
+                    $my_item->setAttribute('isvisible', 'true');
+                    // Give a child element <title> to the <item> element.
+                    $my_title = $xmldoc->createElement(
+                        'title',
+                        htmlspecialchars(
+                            api_utf8_encode($item->get_title()),
+                            ENT_QUOTES,
+                            'UTF-8'
+                        )
+                    );
+                    $my_item->appendChild($my_title);
+                    // Give a child element <adlcp:prerequisites> to the <item> element.
+                    $my_prereqs = $xmldoc->createElement('adlcp:prerequisites', $item->get_prereq_string());
+                    $my_prereqs->setAttribute('type', 'aicc_script');
+                    $my_item->appendChild($my_prereqs);
+                    // Give a child element <adlcp:maxtimeallowed> to the <item> element - not yet supported.
+                    //$xmldoc->createElement('adlcp:maxtimeallowed', '');
+                    // Give a child element <adlcp:timelimitaction> to the <item> element - not yet supported.
+                    //$xmldoc->createElement('adlcp:timelimitaction', '');
+                    // Give a child element <adlcp:datafromlms> to the <item> element - not yet supported.
+                    //$xmldoc->createElement('adlcp:datafromlms', '');
+                    // Give a child element <adlcp:masteryscore> to the <item> element.
+                    $my_masteryscore = $xmldoc->createElement('adlcp:masteryscore', $item->get_mastery_score());
+                    $my_item->appendChild($my_masteryscore);
 
-                        // Attach this item to the organization element or its parent if there is one.
-                        if (!empty($item->parent) && $item->parent != 0) {
-                            $children = $organization->childNodes;
-                            for ($i = 0; $i < $children->length; $i++) {
-                                $item_temp = $children->item($i);
-                                if ($item_temp->nodeName == 'item') {
-                                    if ($item_temp->getAttribute('identifier') == 'ITEM_'.$item->parent) {
-                                        $item_temp->appendChild($my_item);
-                                    }
+                    // Attach this item to the organization element or its parent if there is one.
+                    if (!empty($item->parent) && $item->parent != 0) {
+                        $children = $organization->childNodes;
+                        for ($i = 0; $i < $children->length; $i++) {
+                            $item_temp = $children->item($i);
+                            if ($item_temp->nodeName == 'item') {
+                                if ($item_temp->getAttribute('identifier') == 'ITEM_' . $item->parent) {
+                                    $item_temp->appendChild($my_item);
                                 }
                             }
-                        } else {
-                            $organization->appendChild($my_item);
                         }
+                    } else {
+                        $organization->appendChild($my_item);
+                    }
 
-                        $my_file_path = 'link_'.$item->get_id().'.html';
-                        $sql = 'SELECT url, title FROM '.Database::get_course_table(TABLE_LINK).'
-                                WHERE c_id = '.$course_id.' AND id = '.$item->path;
-                        $rs = Database::query($sql);
-                        if ($link = Database::fetch_array($rs)) {
-                            $url = $link['url'];
-                            $title = stripslashes($link['title']);
-                            $links_to_create[$my_file_path] = ['title' => $title, 'url' => $url];
-                            $my_xml_file_path = $my_file_path;
-                            $my_sub_dir = dirname($my_file_path);
-                            $my_sub_dir = str_replace('\\', '/', $my_sub_dir);
-                            $my_xml_sub_dir = $my_sub_dir;
-                            // Give a <resource> child to the <resources> element.
-                            $my_resource = $xmldoc->createElement('resource');
-                            $my_resource->setAttribute('identifier', 'RESOURCE_'.$item->get_id());
-                            $my_resource->setAttribute('type', 'webcontent');
-                            $my_resource->setAttribute('href', $my_xml_file_path);
-                            // adlcp:scormtype can be either 'sco' or 'asset'.
-                            $my_resource->setAttribute('adlcp:scormtype', 'asset');
-                            // xml:base is the base directory to find the files declared in this resource.
-                            $my_resource->setAttribute('xml:base', '');
-                            // give a <file> child to the <resource> element.
-                            $my_file = $xmldoc->createElement('file');
-                            $my_file->setAttribute('href', $my_xml_file_path);
-                            $my_resource->appendChild($my_file);
-                            $resources->appendChild($my_resource);
-                        }
-                        break;
-                    default:
-                        // Get the path of the file(s) from the course directory root
-                        $my_file_path = 'non_exportable.html';
-                        //$my_xml_file_path = api_htmlentities(api_utf8_encode($my_file_path), ENT_COMPAT, 'UTF-8');
+                    $my_file_path = 'link_' . $item->get_id() . '.html';
+                    $sql = 'SELECT url, title FROM ' . Database::get_course_table(TABLE_LINK) . '
+                                WHERE c_id = ' . $course_id . ' AND id = ' . $item->path;
+                    $rs = Database::query($sql);
+                    if ($link = Database::fetch_array($rs)) {
+                        $url = $link['url'];
+                        $title = stripslashes($link['title']);
+                        $links_to_create[$my_file_path] = ['title' => $title, 'url' => $url];
                         $my_xml_file_path = $my_file_path;
                         $my_sub_dir = dirname($my_file_path);
                         $my_sub_dir = str_replace('\\', '/', $my_sub_dir);
-                        //$my_xml_sub_dir = api_htmlentities(api_utf8_encode($my_sub_dir), ENT_COMPAT, 'UTF-8');
                         $my_xml_sub_dir = $my_sub_dir;
                         // Give a <resource> child to the <resources> element.
                         $my_resource = $xmldoc->createElement('resource');
-                        $my_resource->setAttribute('identifier', 'RESOURCE_'.$item->get_id());
+                        $my_resource->setAttribute('identifier', 'RESOURCE_' . $item->get_id());
                         $my_resource->setAttribute('type', 'webcontent');
-                        $my_resource->setAttribute('href', $folder_name.'/'.$my_xml_file_path);
+                        $my_resource->setAttribute('href', $my_xml_file_path);
                         // adlcp:scormtype can be either 'sco' or 'asset'.
                         $my_resource->setAttribute('adlcp:scormtype', 'asset');
                         // xml:base is the base directory to find the files declared in this resource.
                         $my_resource->setAttribute('xml:base', '');
-                        // Give a <file> child to the <resource> element.
+                        // give a <file> child to the <resource> element.
                         $my_file = $xmldoc->createElement('file');
-                        $my_file->setAttribute('href', 'document/'.$my_xml_file_path);
+                        $my_file->setAttribute('href', $my_xml_file_path);
                         $my_resource->appendChild($my_file);
                         $resources->appendChild($my_resource);
-                        break;
-                }
+                    }
+                    break;
+                default:
+                    // Get the path of the file(s) from the course directory root
+                    $my_file_path = 'non_exportable.html';
+                    //$my_xml_file_path = api_htmlentities(api_utf8_encode($my_file_path), ENT_COMPAT, 'UTF-8');
+                    $my_xml_file_path = $my_file_path;
+                    $my_sub_dir = dirname($my_file_path);
+                    $my_sub_dir = str_replace('\\', '/', $my_sub_dir);
+                    //$my_xml_sub_dir = api_htmlentities(api_utf8_encode($my_sub_dir), ENT_COMPAT, 'UTF-8');
+                    $my_xml_sub_dir = $my_sub_dir;
+                    // Give a <resource> child to the <resources> element.
+                    $my_resource = $xmldoc->createElement('resource');
+                    $my_resource->setAttribute('identifier', 'RESOURCE_' . $item->get_id());
+                    $my_resource->setAttribute('type', 'webcontent');
+                    $my_resource->setAttribute('href', $folder_name . '/' . $my_xml_file_path);
+                    // adlcp:scormtype can be either 'sco' or 'asset'.
+                    $my_resource->setAttribute('adlcp:scormtype', 'asset');
+                    // xml:base is the base directory to find the files declared in this resource.
+                    $my_resource->setAttribute('xml:base', '');
+                    // Give a <file> child to the <resource> element.
+                    $my_file = $xmldoc->createElement('file');
+                    $my_file->setAttribute('href', 'document/' . $my_xml_file_path);
+                    $my_resource->appendChild($my_file);
+                    $resources->appendChild($my_resource);
+                    break;
             }
         }
-        $organizations->appendChild($organization);
-        $root->appendChild($organizations);
-        $root->appendChild($resources);
-        $xmldoc->appendChild($root);
+    }
+    $organizations->appendChild($organization);
+    $root->appendChild($organizations);
+    $root->appendChild($resources);
+    $xmldoc->appendChild($root);
 
-        $copyAll = api_get_configuration_value('add_all_files_in_lp_export');
+    $copyAll = api_get_configuration_value('add_all_files_in_lp_export');
 
-        // then add the file to the zip, then destroy the file (this is done automatically).
-        // http://www.reload.ac.uk/scormplayer.html - once done, don't forget to close FS#138
-        foreach ($zip_files as $file_path) {
-            if (empty($file_path)) {
-                continue;
-            }
-
-            $filePath = $sys_course_path.$_course['path'].'/'.$file_path;
-            $dest_file = $archivePath.$temp_dir_short.'/'.$file_path;
-
-            if (!empty($path_to_remove) && !empty($path_to_replace)) {
-                $dest_file = str_replace($path_to_remove, $path_to_replace, $dest_file);
-            }
-
-            $lp->create_path($dest_file);
-            @copy($filePath, $dest_file);
-
-            // Check if the file needs a link update.
-            if (in_array($file_path, array_keys($link_updates))) {
-                $string = file_get_contents($dest_file);
-                unlink($dest_file);
-                foreach ($link_updates[$file_path] as $old_new) {
-                    // This is an ugly hack that allows .flv files to be found by the flv player that
-                    // will be added in document/main/inc/lib/flv_player/flv_player.swf and that needs
-                    // to find the flv to play in document/main/, so we replace main/ in the flv path by
-                    // ../../.. to return from inc/lib/flv_player to the document/main path.
-                    if (substr($old_new['dest'], -3) === 'flv' &&
-                        substr($old_new['dest'], 0, 5) === 'main/'
-                    ) {
-                        $old_new['dest'] = str_replace('main/', '../../../', $old_new['dest']);
-                    } elseif (substr($old_new['dest'], -3) === 'flv' &&
-                        substr($old_new['dest'], 0, 6) === 'video/'
-                    ) {
-                        $old_new['dest'] = str_replace('video/', '../../../../video/', $old_new['dest']);
-                    }
-
-                    // Fix to avoid problems with default_course_document
-                    if (strpos('main/default_course_document', $old_new['dest']) === false) {
-                        $newDestination = $old_new['dest'];
-                        if (isset($old_new['replace']) && !empty($old_new['replace'])) {
-                            $newDestination = $old_new['replace'];
-                        }
-                    } else {
-                        $newDestination = str_replace('document/', '', $old_new['dest']);
-                    }
-                    $string = str_replace($old_new['orig'], $newDestination, $string);
-
-                    // Add files inside the HTMLs
-                    $new_path = str_replace(api_get_path(REL_COURSE_PATH), '', $old_new['orig']);
-                    $destinationFile = $archivePath.$temp_dir_short.'/'.$old_new['dest'];
-                    if (file_exists($sys_course_path.$new_path) && is_file($sys_course_path.$new_path)) {
-                        copy(
-                            $sys_course_path.$new_path,
-                            $destinationFile
-                        );
-                    }
-                }
-                file_put_contents($dest_file, $string);
-            }
-
-            if (file_exists($filePath) && $copyAll) {
-                $extension = $lp->get_extension($filePath);
-                if (in_array($extension, ['html', 'html'])) {
-                    $containerOrigin = dirname($filePath);
-                    $containerDestination = dirname($dest_file);
-
-                    $finder = new Finder();
-                    $finder->files()->in($containerOrigin)
-                        ->notName('*_DELETED_*')
-                        ->exclude('share_folder')
-                        ->exclude('chat_files')
-                        ->exclude('certificates')
-                    ;
-
-                    if (is_dir($containerOrigin) &&
-                        is_dir($containerDestination)
-                    ) {
-                        $fs = new Filesystem();
-                        $fs->mirror(
-                            $containerOrigin,
-                            $containerDestination,
-                            $finder
-                        );
-                    }
-                }
-            }
+    // then add the file to the zip, then destroy the file (this is done automatically).
+    // http://www.reload.ac.uk/scormplayer.html - once done, don't forget to close FS#138
+    foreach ($zip_files as $file_path) {
+        if (empty($file_path)) {
+            continue;
         }
 
-        foreach ($zip_files_abs as $file_path) {
-            if (empty($file_path)) {
-                continue;
-            }
+        $filePath = $sys_course_path . $_course['path'] . '/' . $file_path;
+        $dest_file = $archivePath . $temp_dir_short . '/' . $file_path;
 
-            if (!is_file($main_path.$file_path) || !is_readable($main_path.$file_path)) {
-                continue;
-            }
+        if (!empty($path_to_remove) && !empty($path_to_replace)) {
+            $dest_file = str_replace($path_to_remove, $path_to_replace, $dest_file);
+        }
 
-            $dest_file = $archivePath.$temp_dir_short.'/document/'.$file_path;
-            if (strstr($file_path, 'upload/users') !== false) {
-                $pos = strpos($file_path, 'my_files/');
-                if ($pos !== false) {
-                    $onlyDirectory = str_replace(
-                        'upload/users/',
-                        '',
-                        substr($file_path, $pos, strlen($file_path))
+        $lp->create_path($dest_file);
+        @copy($filePath, $dest_file);
+
+        // Check if the file needs a link update.
+        if (in_array($file_path, array_keys($link_updates))) {
+            $string = file_get_contents($dest_file);
+            unlink($dest_file);
+            foreach ($link_updates[$file_path] as $old_new) {
+                // This is an ugly hack that allows .flv files to be found by the flv player that
+                // will be added in document/main/inc/lib/flv_player/flv_player.swf and that needs
+                // to find the flv to play in document/main/, so we replace main/ in the flv path by
+                // ../../.. to return from inc/lib/flv_player to the document/main path.
+                if (
+                    substr($old_new['dest'], -3) === 'flv' &&
+                    substr($old_new['dest'], 0, 5) === 'main/'
+                ) {
+                    $old_new['dest'] = str_replace('main/', '../../../', $old_new['dest']);
+                } elseif (
+                    substr($old_new['dest'], -3) === 'flv' &&
+                    substr($old_new['dest'], 0, 6) === 'video/'
+                ) {
+                    $old_new['dest'] = str_replace('video/', '../../../../video/', $old_new['dest']);
+                }
+
+                // Fix to avoid problems with default_course_document
+                if (strpos('main/default_course_document', $old_new['dest']) === false) {
+                    $newDestination = $old_new['dest'];
+                    if (isset($old_new['replace']) && !empty($old_new['replace'])) {
+                        $newDestination = $old_new['replace'];
+                    }
+                } else {
+                    $newDestination = str_replace('document/', '', $old_new['dest']);
+                }
+                $string = str_replace($old_new['orig'], $newDestination, $string);
+
+                // Add files inside the HTMLs
+                $new_path = str_replace(api_get_path(REL_COURSE_PATH), '', $old_new['orig']);
+                $destinationFile = $archivePath . $temp_dir_short . '/' . $old_new['dest'];
+                if (file_exists($sys_course_path . $new_path) && is_file($sys_course_path . $new_path)) {
+                    copy(
+                        $sys_course_path . $new_path,
+                        $destinationFile
                     );
-                    $dest_file = $archivePath.$temp_dir_short.'/document/'.$onlyDirectory;
                 }
             }
+            file_put_contents($dest_file, $string);
+        }
 
-            if (strstr($file_path, 'default_course_document/') !== false) {
-                $replace = str_replace('/main', '', $file_path);
-                $dest_file = $archivePath.$temp_dir_short.'/document/'.$replace;
-            }
+        if (file_exists($filePath) && $copyAll) {
+            $extension = $lp->get_extension($filePath);
+            if (in_array($extension, ['html', 'html'])) {
+                $containerOrigin = dirname($filePath);
+                $containerDestination = dirname($dest_file);
 
-            if (empty($dest_file)) {
-                continue;
-            }
+                $finder = new Finder();
+                $finder->files()->in($containerOrigin)
+                    ->notName('*_DELETED_*')
+                    ->exclude('share_folder')
+                    ->exclude('chat_files')
+                    ->exclude('certificates');
 
-            $lp->create_path($dest_file);
-            copy($main_path.$file_path, $dest_file);
-            // Check if the file needs a link update.
-            if (in_array($file_path, array_keys($link_updates))) {
-                $string = file_get_contents($dest_file);
-                unlink($dest_file);
-                foreach ($link_updates[$file_path] as $old_new) {
-                    // This is an ugly hack that allows .flv files to be found by the flv player that
-                    // will be added in document/main/inc/lib/flv_player/flv_player.swf and that needs
-                    // to find the flv to play in document/main/, so we replace main/ in the flv path by
-                    // ../../.. to return from inc/lib/flv_player to the document/main path.
-                    if (substr($old_new['dest'], -3) == 'flv' &&
-                        substr($old_new['dest'], 0, 5) == 'main/'
-                    ) {
-                        $old_new['dest'] = str_replace('main/', '../../../', $old_new['dest']);
-                    }
-                    $string = str_replace($old_new['orig'], $old_new['dest'], $string);
+                if (
+                    is_dir($containerOrigin) &&
+                    is_dir($containerDestination)
+                ) {
+                    $fs = new Filesystem();
+                    $fs->mirror(
+                        $containerOrigin,
+                        $containerDestination,
+                        $finder
+                    );
                 }
-                file_put_contents($dest_file, $string);
+            }
+        }
+    }
+
+    foreach ($zip_files_abs as $file_path) {
+        if (empty($file_path)) {
+            continue;
+        }
+
+        if (!is_file($main_path . $file_path) || !is_readable($main_path . $file_path)) {
+            continue;
+        }
+
+        $dest_file = $archivePath . $temp_dir_short . '/document/' . $file_path;
+        if (strstr($file_path, 'upload/users') !== false) {
+            $pos = strpos($file_path, 'my_files/');
+            if ($pos !== false) {
+                $onlyDirectory = str_replace(
+                    'upload/users/',
+                    '',
+                    substr($file_path, $pos, strlen($file_path))
+                );
+                $dest_file = $archivePath . $temp_dir_short . '/document/' . $onlyDirectory;
             }
         }
 
-        if (is_array($links_to_create)) {
-            foreach ($links_to_create as $file => $link) {
-                $content = '<!DOCTYPE html><head>
-                            <meta charset="'.api_get_language_isocode().'" />
-                            <title>'.$link['title'].'</title>
+        if (strstr($file_path, 'default_course_document/') !== false) {
+            $replace = str_replace('/main', '', $file_path);
+            $dest_file = $archivePath . $temp_dir_short . '/document/' . $replace;
+        }
+
+        if (empty($dest_file)) {
+            continue;
+        }
+
+        $lp->create_path($dest_file);
+        copy($main_path . $file_path, $dest_file);
+        // Check if the file needs a link update.
+        if (in_array($file_path, array_keys($link_updates))) {
+            $string = file_get_contents($dest_file);
+            unlink($dest_file);
+            foreach ($link_updates[$file_path] as $old_new) {
+                // This is an ugly hack that allows .flv files to be found by the flv player that
+                // will be added in document/main/inc/lib/flv_player/flv_player.swf and that needs
+                // to find the flv to play in document/main/, so we replace main/ in the flv path by
+                // ../../.. to return from inc/lib/flv_player to the document/main path.
+                if (
+                    substr($old_new['dest'], -3) == 'flv' &&
+                    substr($old_new['dest'], 0, 5) == 'main/'
+                ) {
+                    $old_new['dest'] = str_replace('main/', '../../../', $old_new['dest']);
+                }
+                $string = str_replace($old_new['orig'], $old_new['dest'], $string);
+            }
+            file_put_contents($dest_file, $string);
+        }
+    }
+
+    if (is_array($links_to_create)) {
+        foreach ($links_to_create as $file => $link) {
+            $content = '<!DOCTYPE html><head>
+                            <meta charset="' . api_get_language_isocode() . '" />
+                            <title>' . $link['title'] . '</title>
                             </head>
-                            <body dir="'.api_get_text_direction().'">
+                            <body dir="' . api_get_text_direction() . '">
                             <div style="text-align:center">
-                            <a href="'.$link['url'].'">'.$link['title'].'</a></div>
+                            <a href="' . $link['url'] . '">' . $link['title'] . '</a></div>
                             </body>
                             </html>';
-                file_put_contents($archivePath.$temp_dir_short.'/'.$file, $content);
-            }
+            file_put_contents($archivePath . $temp_dir_short . '/' . $file, $content);
         }
+    }
 
-        // Add non exportable message explanation.
-        $lang_not_exportable = get_lang('ThisItemIsNotExportable');
-        $file_content = '<!DOCTYPE html><head>
-                        <meta charset="'.api_get_language_isocode().'" />
-                        <title>'.$lang_not_exportable.'</title>
-                        <meta http-equiv="Content-Type" content="text/html; charset='.api_get_system_encoding().'" />
+    // Add non exportable message explanation.
+    $lang_not_exportable = get_lang('ThisItemIsNotExportable');
+    $file_content = '<!DOCTYPE html><head>
+                        <meta charset="' . api_get_language_isocode() . '" />
+                        <title>' . $lang_not_exportable . '</title>
+                        <meta http-equiv="Content-Type" content="text/html; charset=' . api_get_system_encoding() . '" />
                         </head>
-                        <body dir="'.api_get_text_direction().'">';
-        $file_content .=
-            <<<EOD
+                        <body dir="' . api_get_text_direction() . '">';
+    $file_content .=
+        <<<EOD
                     <style>
             .error-message {
                 font-family: arial, verdana, helvetica, sans-serif;
@@ -717,51 +721,52 @@ function lpScormExport($corse_code, learnpath $lp)
     </body>
 </html>
 EOD;
-        if (!is_dir($archivePath.$temp_dir_short.'/document')) {
-            @mkdir($archivePath.$temp_dir_short.'/document', api_get_permissions_for_new_directories());
-        }
-        file_put_contents($archivePath.$temp_dir_short.'/document/non_exportable.html', $file_content);
-
-        // Add the extra files that go along with a SCORM package.
-        $main_code_path = api_get_path(SYS_CODE_PATH).'lp/packaging/';
-
-        $fs = new Filesystem();
-        $fs->mirror($main_code_path, $archivePath.$temp_dir_short);
-
-        // Finalize the imsmanifest structure, add to the zip, then return the zip.
-        $manifest = @$xmldoc->saveXML();
-        $manifest = api_utf8_decode_xml($manifest); // The manifest gets the system encoding now.
-        file_put_contents($archivePath.'/'.$temp_dir_short.'/imsmanifest.xml', $manifest);
-
-        $htmlIndex = new LpIndexGenerator($lp);
-
-        file_put_contents(
-            $archivePath.'/'.$temp_dir_short.'/index.html',
-            $htmlIndex->generate()
-        );
-
-        $zip_folder->add(
-            $archivePath.'/'.$temp_dir_short,
-            PCLZIP_OPT_REMOVE_PATH,
-            $archivePath.'/'.$temp_dir_short.'/'
-        );
-
-        // Clean possible temporary files.
-        foreach ($files_cleanup as $file) {
-            $res = unlink($file);
-            if ($res === false) {
-                error_log(
-                    'Could not delete temp file '.$file.' '.__FILE__.' '.__LINE__,
-                    0
-                );
-            }
-        }
-        $name = api_replace_dangerous_char($lp->get_name()).'.zip';
-        DocumentManager::file_send_for_download($temp_zip_file, true, $name);
+    if (!is_dir($archivePath . $temp_dir_short . '/document')) {
+        @mkdir($archivePath . $temp_dir_short . '/document', api_get_permissions_for_new_directories());
     }
+    file_put_contents($archivePath . $temp_dir_short . '/document/non_exportable.html', $file_content);
+
+    // Add the extra files that go along with a SCORM package.
+    $main_code_path = api_get_path(SYS_CODE_PATH) . 'lp/packaging/';
+
+    $fs = new Filesystem();
+    $fs->mirror($main_code_path, $archivePath . $temp_dir_short);
+
+    // Finalize the imsmanifest structure, add to the zip, then return the zip.
+    $manifest = @$xmldoc->saveXML();
+    $manifest = api_utf8_decode_xml($manifest); // The manifest gets the system encoding now.
+    file_put_contents($archivePath . '/' . $temp_dir_short . '/imsmanifest.xml', $manifest);
+
+    $htmlIndex = new LpIndexGenerator($lp);
+
+    file_put_contents(
+        $archivePath . '/' . $temp_dir_short . '/index.html',
+        $htmlIndex->generate()
+    );
+
+    $zip_folder->add(
+        $archivePath . '/' . $temp_dir_short,
+        PCLZIP_OPT_REMOVE_PATH,
+        $archivePath . '/' . $temp_dir_short . '/'
+    );
+
+    // Clean possible temporary files.
+    foreach ($files_cleanup as $file) {
+        $res = unlink($file);
+        if ($res === false) {
+            error_log(
+                'Could not delete temp file ' . $file . ' ' . __FILE__ . ' ' . __LINE__,
+                0
+            );
+        }
+    }
+    $name = api_replace_dangerous_char($lp->get_name()) . '.zip';
+    DocumentManager::file_send_for_download($temp_zip_file, true, $name);
+}
 
 
-function lpScormImport($course_code, $files){
+function lpScormImport($course, $files)
+{
 
     $current_dir = '';
     $allowHtaccess = false;
@@ -780,17 +785,20 @@ function lpScormImport($course_code, $files){
     }
 
     $oScorm = new scorm();
+    $oScorm->debug = 2;
     $manifest = $oScorm->import_package(
         $files['scormUpload'],
         $current_dir,
-        [],
-        false,
+        $course,
+        true,
         null,
-        $allowHtaccess
+        true
     );
+
+
     if (!empty($manifest)) {
         $oScorm->parse_manifest($manifest);
-        $oScorm->import_manifest($course_code, $_REQUEST['use_max_score']);
+        $oScorm->import_manifest($course['code']);
     }
     $oScorm->set_proximity($proximity);
     $oScorm->set_maker($maker);

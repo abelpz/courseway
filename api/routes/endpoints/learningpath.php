@@ -104,7 +104,7 @@ $endpoint->post('/course/{course_code}/learningpath', function (Request $req, Re
                 new Assert\NotBlank(),
                 new Assert\Type('string')
             ]),
-            'description' => new Assert\Optional([ new Assert\Type('string') ]),
+            'description' => new Assert\Optional([new Assert\Type('string')]),
             'category_id' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
         ],
         'allowExtraFields' => true
@@ -114,7 +114,7 @@ $endpoint->post('/course/{course_code}/learningpath', function (Request $req, Re
     $course = api_get_course_info($courseCode);
     if (!$course)
         throwException($req, '404', "Course with code `{$courseCode}` not found.");
-    
+
     $name = $data['name'];
     $description = $data['description'] ?: '';
     $learnpath = 'guess';
@@ -127,12 +127,12 @@ $endpoint->post('/course/{course_code}/learningpath', function (Request $req, Re
     $token = $req->getAttribute("token");
     $userId = $token['uid'] ?: 0;
 
-    if($categoryId !== 0){
+    if ($categoryId !== 0) {
         $category = learnpath::getCategory($categoryId);
-        if(!$category)
+        if (!$category)
             throwException($req, '404', "Category with id {$categoryId} not found in DB.");
-    
-        if($category->getCId() !== $course['real_id'])
+
+        if ($category->getCId() !== $course['real_id'])
             throwException($req, '422', "Category with id {$categoryId} not found in course.");
     }
 
@@ -215,11 +215,11 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}', function 
     if (!$learningpath)
         throwException($req, '404', "Learning path not found in course.");
 
-    
+
     $res->getBody()->write(json_encode($learningpath, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
     return $res
-            ->withHeader("Content-Type", "application/json")
-            ->withStatus(200);
+        ->withHeader("Content-Type", "application/json")
+        ->withStatus(200);
 });
 
 /**
@@ -273,7 +273,7 @@ $endpoint->delete('/course/{course_code}/learningpath/{learningpath_id}', functi
     $learningpath = Database::store_result($result, 'ASSOC');
     if (!$learningpath)
         throwException($req, '422', "Learning path not found in course.");
-    
+
     $token = $req->getAttribute("token");
     $userId = $token['uid'];
     $learningpath = new learnpath(
@@ -281,7 +281,7 @@ $endpoint->delete('/course/{course_code}/learningpath/{learningpath_id}', functi
         $args['learningpath_id'],
         $userId
     );
-    if($learningpath->delete($course) === false)
+    if ($learningpath->delete($course) === false)
         throwException($req, '422', "Learning path could not be deleted.");
 
     return $res->withStatus(204);
@@ -321,7 +321,7 @@ $endpoint->get('/course/{course_code}/learningpaths/categories', function (Reque
     $course = api_get_course_info($courseCode);
     if (!$course)
         throwException($req, '404', "Course with code `{$courseCode}` not found.");
-        
+
     $courseId = $course['real_id'];
 
     $lpCategories = learnpath::getCategories($courseId);
@@ -337,8 +337,8 @@ $endpoint->get('/course/{course_code}/learningpaths/categories', function (Reque
 
     $res->getBody()->write(json_encode($categories, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
     return $res
-            ->withHeader("Content-Type", "application/json")
-            ->withStatus(200);
+        ->withHeader("Content-Type", "application/json")
+        ->withStatus(200);
 });
 
 /**
@@ -405,9 +405,9 @@ $endpoint->post('/course/{course_code}/learningpaths/category', function (Reques
 
     $res->getBody()->write(json_encode($lpCategory[0], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
     return $res
-            ->withHeader("Content-Type", "application/json")
-            ->withHeader("Location", COURSEWAY_API_URI . "/course/{$args['course_code']}/learningpaths/category/{$lpCategoryId}")
-            ->withStatus(201);
+        ->withHeader("Content-Type", "application/json")
+        ->withHeader("Location", COURSEWAY_API_URI . "/course/{$args['course_code']}/learningpaths/category/{$lpCategoryId}")
+        ->withStatus(201);
 });
 
 /**
@@ -556,7 +556,7 @@ $endpoint->delete('/course/{course_code}/learningpaths/category/{category_id}', 
  */
 
 $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/sections', function (Request $req, Response $res, $args) use ($endpoint) {
-    
+
     Validator::validate($req, $args, new Assert\Collection([
         'fields' => [
             'course_code' => new Assert\Required([
@@ -573,7 +573,7 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/sections', 
     $course = api_get_course_info($args['course_code']);
     if (!$course)
         throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
-    
+
     $token = $req->getAttribute("token");
     $userId = $token['uid'];
     $learningpath = new learnpath(
@@ -592,7 +592,7 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/sections', 
 
     return
         $res->withHeader("Content-Type", "application/json")
-            ->withStatus(200);
+        ->withStatus(200);
 });
 
 /**
@@ -645,9 +645,9 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/sections', 
 
 $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/section', function (Request $req, Response $res, $args) use ($endpoint) {
     $data = json_decode($req->getBody()->getContents(), true);
-    
-    
-    Validator::validate($req, array_merge($args,$data), new Assert\Collection([
+
+
+    Validator::validate($req, array_merge($args, $data), new Assert\Collection([
         'fields' => [
             'course_code' => new Assert\Required([
                 new Assert\NotBlank(),
@@ -661,15 +661,15 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/section', 
                 new Assert\NotBlank(),
                 new Assert\Type('string')
             ]),
-            'parent_id' => new Assert\Optional([ new Assert\Type('integer'), new Assert\PositiveOrZero() ]),
-            'previous_id' => new Assert\Optional([ new Assert\Type('integer'), new Assert\PositiveOrZero() ]),
+            'parent_id' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'previous_id' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
         ]
     ]));
 
     $course = api_get_course_info($args['course_code']);
     if (!$course)
         throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
-        
+
     $token = $req->getAttribute("token");
     $userId = $token['uid'];
     $learningpath = new learnpath(
@@ -679,7 +679,7 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/section', 
     );
     if (!$learningpath->name)
         throwException($req, '404', "Learning path with id {$args['learningpath_id']} not found.");
-    
+
     $parent = $data['parent_id'] ?: 0;
     $previous = $data['previous_id'] ?: array_key_last($learningpath->items);
     $type = 'dir';
@@ -708,8 +708,8 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/section', 
 
     return
         $res
-            ->withHeader("Content-Type", "application/json")
-            ->withStatus(201);
+        ->withHeader("Content-Type", "application/json")
+        ->withStatus(201);
 });
 
 /**
@@ -934,7 +934,7 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/scorm', fun
     if (!$items)
         throwException($req, '422', "Learning path with id {$args['learningpath_id']} is empty.");
 
-    lpScormExport($args['course_code'],$learningpath);
+    lpScormExport($args['course_code'], $learningpath);
 
     // $res->getBody()
     //     ->write(json_encode($documents, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
@@ -980,11 +980,10 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/scorm', fun
  */
 
 $endpoint->post('/course/{course_code}/learningpath/scorm', function (Request $req, Response $res, $args) use ($endpoint) {
-
     $data = $req->getParsedBody();
     $uploadedFiles = $req->getUploadedFiles() ? $_FILES : [];
 
-    Validator::validate($req,array_merge($data, $args, $uploadedFiles), new Assert\Collection([
+    Validator::validate($req, array_merge($data, $args, $uploadedFiles), new Assert\Collection([
         'fields' => [
             'course_code' => new Assert\Required([
                 new Assert\NotBlank(),
@@ -997,7 +996,11 @@ $endpoint->post('/course/{course_code}/learningpath/scorm', function (Request $r
                     new Assert\NotBlank()
                 ]),
             ]),
-            'use_max_score' => new Assert\Optional([new Assert\Type('numeric'), new Assert\PositiveOrZero()]),
+            'use_max_score' => new Assert\Optional([
+                new Assert\AtLeastOneOf([
+                    new Assert\Type('numeric'), new Assert\PositiveOrZero(), new Assert\Blank()
+                ]),
+            ])
         ]
     ]));
 
@@ -1006,23 +1009,32 @@ $endpoint->post('/course/{course_code}/learningpath/scorm', function (Request $r
 
     $course = api_get_course_info($args['course_code']);
 
-
     if (!$course)
         throwException($req, '404', "Course with code '{$args['course_code']}' not found.");
-        
-    $manifest = lpScormImport($args['course_code'], $uploadedFiles);
-    if (!$manifest)
-        throwException($req, '422', "Scorm coud not be uploaded. Fail in lpScormImport");
 
-    $courseId = $course['real_id'];
-    $sessionId = 0;
+    $manifest = lpScormImport($course, $uploadedFiles);
+    if (!$manifest) {
+        $error = ["message" => "Scorm coud not be uploaded. Fail in lpScormImport", "last_error" => error_get_last()];
+        throwException($req, '422', json_encode($error, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    }
 
-    $learningpaths = learnpath::getLpList($courseId, $sessionId);
+    try {
+        $courseId = $course['real_id'];
+        $sessionId = 0;
 
-    $scormLp = $learningpaths[count($learningpaths) - 1];
+        $learningpaths = learnpath::getLpList($courseId, $sessionId);
 
-    $res->getBody()
-        ->write(json_encode($scormLp, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-    return
-        $res->withStatus(200);
+        $scormLp = $learningpaths[count($learningpaths) - 1];
+
+        $res->getBody()
+            ->write(json_encode($scormLp, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+        return
+            $res->withStatus(200);
+    } catch (\Throwable $th) {
+        $error = ["error" => "error getting lp list", "th" => $th];
+        $res->getBody()
+            ->write(json_encode($error, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+        return
+            $res->withStatus(500);
+    }
 });
