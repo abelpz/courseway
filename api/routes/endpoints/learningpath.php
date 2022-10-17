@@ -532,8 +532,8 @@ $endpoint->delete('/course/{course_code}/learningpaths/category/{category_id}', 
 
 /**
  * @OA\Get(
- *     path="/course/{course_code}/learningpath/{learningpath_id}/sections", tags={"Learning Paths"},
- *     summary="List sections from course's learning path",
+ *     path="/course/{course_code}/learningpath/{learningpath_id}/items", tags={"Learning Paths"},
+ *     summary="List items (including sections) from course's learning path",
  *     security={{"bearerAuth": {}}},
  *     @OA\Parameter(
  *          description="unique string identifier of the course from which the learning path sections will be listed.",
@@ -555,7 +555,7 @@ $endpoint->delete('/course/{course_code}/learningpaths/category/{category_id}', 
  * )
  */
 
-$endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/sections', function (Request $req, Response $res, $args) use ($endpoint) {
+$endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/items', function (Request $req, Response $res, $args) use ($endpoint) {
 
     Validator::validate($req, $args, new Assert\Collection([
         'fields' => [
@@ -702,6 +702,161 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/section', 
     );
     if (!$lpSection)
         throwException($req, '422', "Learningpath section could not be created.");
+
+    $res->getBody()
+        ->write(json_encode($lpSection, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    return
+        $res
+        ->withHeader("Content-Type", "application/json")
+        ->withStatus(201);
+});
+
+/**
+ * @OA\Patch(
+ *     path="/course/{course_code}/learningpath/{learningpath_id}/item", tags={"Learning Paths"},
+ *     summary="Creates an item in a learning path from a resource",
+ *     operationId="lpAddItem",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the learning path section will be added.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique int identifier of the learning path in which the section will be added.",
+ *          in="path",
+ *          name="learningpath_id",
+ *          required=true,
+ *          @OA\Schema(type="integer"),
+ *     ),
+ *     @OA\RequestBody(
+ *          @OA\MediaType(
+ *             mediaType="application/json",
+ *             @OA\Schema(
+ *                 required={"title","resource_id","resource_type"},
+ *                  @OA\Property(
+ *                     property="resource_id",
+ *                     type="integer",
+ *                     description="<small>The id of the resource which will be added.</small>"
+ *                 ),
+ *                  @OA\Property(
+ *                     property="resource_type",
+ *                     type="string",
+ *                     description="<small>The type of resource to be added. (one of: link|student_publication|dir|quiz|document|forum|thread)</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="title",
+ *                     type="string",
+ *                     description="<small>Learning path item title.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="description",
+ *                     type="string",
+ *                     description="<small>Learning path item description.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="prerequisite",
+ *                     type="integer",
+ *                     description="<small>Id of a learning path item that is required to access this item.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="parent_id",
+ *                     type="integer",
+ *                     description="<small>If this is a child item, the id of its parent.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="previous_id",
+ *                     type="integer",
+ *                     description="<small>id of the item that will be before this one. Should be the same as parent section id if this will be the first item of a section.</small>"
+ *                 )
+ *             )
+ *         )
+ *     ),
+ *     @OA\Response(response="200", description="Added"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->patch('/course/{course_code}/learningpath/{learningpath_id}/item', function (Request $req, Response $res, $args) use ($endpoint) {
+    $data = json_decode($req->getBody()->getContents(), true);
+
+    Validator::validate($req, array_merge($args, $data), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'learningpath_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ]),
+            'resource_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ]),
+            'resource_type' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string'),
+                new Assert\Choice([
+                    'choices' => ["link", "student_publication", "dir", "quiz", "document", "forum", "thread"],
+                    'message' => 'The resource_type must be one of the following: link,student_publication,dir,quiz,document,forum,thread.',
+                ])
+            ]),
+            'title' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'description' => new Assert\Optional([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'prerequisite' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'parent_id' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'previous_id' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+        ]
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
+
+    $token = $req->getAttribute("token");
+    $userId = $token['uid'];
+    $learningpath = new learnpath(
+        $args['course_code'],
+        $args['learningpath_id'],
+        $userId
+    );
+    if (!$learningpath->name)
+        throwException($req, '404', "Learning path with id {$args['learningpath_id']} not found.");
+
+    $parent = $data['parent_id'] ?: 0;
+    $previous = $data['previous_id'] ?: array_key_last($learningpath->items);
+    $type = $data['resource_type'];
+    $id = $data['resource_id'];
+    $title = $data['title'];
+    $description = $data['description'] ?: "";
+    $prerequisites = $data['prerequisite'] ?: 0;
+    $max_time_allowed = 0;
+
+    $lpSection = $learningpath->add_item(
+        $parent,
+        $previous,
+        $type,
+        $id,
+        $title,
+        $description,
+        $prerequisites,
+        $max_time_allowed,
+        $userId
+    );
+
+    if (!$lpSection)
+        throwException($req, '422', "Learningpath item could not be created.");
 
     $res->getBody()
         ->write(json_encode($lpSection, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
@@ -1037,4 +1192,220 @@ $endpoint->post('/course/{course_code}/learningpath/scorm', function (Request $r
         return
             $res->withStatus(500);
     }
+});
+
+
+/**
+ * @OA\Post(
+ *     path="/course/{course_code}/learningpath/{learningpath_id}/item/{lp_item_id}/audio", tags={"Learning Paths"},
+ *     summary="Add audio to learning path item",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the learning path is located.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique string identifier of the learning path.",
+ *          in="path",
+ *          name="learningpath_id",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique string identifier of the learning path item.",
+ *          in="path",
+ *          name="lp_item_id",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\RequestBody(
+ *          @OA\MediaType(
+ *             mediaType="multipart/form-data",
+ *             @OA\Schema(
+ *                  required={"file"},
+ *                  @OA\Property(
+ *                     description="Audio file to upload",
+ *                     property="file",
+ *                     type="string",
+ *                     format="binary",
+ *                  )
+ *              )
+ *         ),
+ *     ),
+ *     @OA\Response(response="200", description="Success"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/item/{lp_item_id}/audio', function (Request $req, Response $res, $args) use ($endpoint) {
+    $data = $req->getParsedBody();
+    $uploadedFiles = $req->getUploadedFiles() ? $_FILES : [];
+
+    Validator::validate($req, array_merge($data, $args, $uploadedFiles), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'learningpath_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'lp_item_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'file' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('array'),
+                new Assert\All([
+                    new Assert\NotBlank()
+                ]),
+            ])
+        ]
+    ]));
+
+    $token = $req->getAttribute("token");
+    $userId = $token['uid'];
+
+    $course = api_get_course_info($args['course_code']);
+
+    if (!$course)
+        throwException($req, '404', "Course with code '{$args['course_code']}' not found.");
+
+    $learningpath = new learnpath(
+        $args['course_code'],
+        $args['learningpath_id'],
+        $userId
+    );
+
+    if (!$learningpath->name)
+        throwException($req, '404', "Learning path with id {$args['learningpath_id']} not found.");
+
+    $lp_item_obj = new learnpathItem($args['lp_item_id'], $userId, $course['real_id']);
+
+    if (!$lp_item_obj->title)
+        throwException($req, '404', "Learning path item with id {$args['lp_item_id']} not found.");
+
+    $learningpath->set_modified_on();
+    $path = $lp_item_obj->addAudio();
+
+    if (!$path)
+        throwException($req, '404', "Audio file could not be added to the \"{$lp_item_obj->title}\" lp item.");
+
+    $res->getBody()
+        ->write(json_encode($path, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return
+        $res->withStatus(200);
+});
+
+
+/**
+ * @OA\Patch(
+ *     path="/course/{course_code}/learningpath/{learningpath_id}/item/{lp_item_id}/audio", tags={"Learning Paths"},
+ *     summary="Add existing audio document to learning path item",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the learning path is located.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique string identifier of the learning path.",
+ *          in="path",
+ *          name="learningpath_id",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique string identifier of the learning path item.",
+ *          in="path",
+ *          name="lp_item_id",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\RequestBody(
+ *          @OA\MediaType(
+ *             mediaType="application/json",
+ *             @OA\Schema(
+ *                 required={"document_id"},
+ *                 @OA\Property(
+ *                     property="document_id",
+ *                     type="integer",
+ *                     description="<small>The audio document id.</small>"
+ *                 ),
+ *             )
+ *         )
+ *     ),
+ *     @OA\Response(response="200", description="Success"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->patch('/course/{course_code}/learningpath/{learningpath_id}/item/{lp_item_id}/audio', function (Request $req, Response $res, $args) use ($endpoint) {
+    $data =
+        json_decode($req->getBody()->getContents(), true);
+
+    Validator::validate($req, array_merge($data, $args), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'learningpath_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'lp_item_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'document_id' => new Assert\Required([new Assert\Type('integer'), new Assert\PositiveOrZero()])
+        ]
+    ]));
+
+    $token = $req->getAttribute("token");
+    $userId = $token['uid'];
+
+    $course = api_get_course_info($args['course_code']);
+
+    if (!$course)
+        throwException($req, '404', "Course with code '{$args['course_code']}' not found.");
+
+    $learningpath = new learnpath(
+        $args['course_code'],
+        $args['learningpath_id'],
+        $userId
+    );
+
+    if (!$learningpath->name)
+        throwException($req, '404', "Learning path with id {$args['learningpath_id']} not found.");
+
+    $lp_item_obj = new learnpathItem($args['lp_item_id'], $userId, $course['real_id']);
+
+    if (!$lp_item_obj->title)
+        throwException($req, '404', "Learning path item with id {$args['lp_item_id']} not found.");
+
+    $document = DocumentManager::get_document_data_by_id($data['document_id'], $args['course_code']);
+    if (!$document)
+        throwException($req, '404', "Document with id {$data['document_id']} not found.");
+
+    $learningpath->set_modified_on();
+    $path =
+        $lp_item_obj->add_audio_from_documents($data['document_id']);
+
+    if (!$path)
+        throwException($req, '404', "Audio file could not be added to the \"{$lp_item_obj->title}\" lp item.");
+
+    $res->getBody()
+        ->write(json_encode($path, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+    return
+        $res->withStatus(200);
 });
