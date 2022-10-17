@@ -89,7 +89,8 @@ $endpoint->get('/courses', function (Request $req, Response $res, $args) use ($e
 
     return
         $res->withHeader("Content-Type", "application/json")
-        ->withStatus(200);});
+        ->withStatus(200);
+});
 
 /**
  * @OA\Post(
@@ -209,16 +210,16 @@ $endpoint->post('/course', function (Request $req, Response $res, $args) use ($e
             'unsubscribe' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
             'teachers' => new Assert\Optional([
                 new Assert\Type('array'),
-                new Assert\All([ new Assert\Type('integer'), new Assert\PositiveOrZero() ]),
+                new Assert\All([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
             ]),
         ]
     ]));
-    
+
     //Check if teachers ids exist
     foreach ($data['teachers'] as $key => $value) {
         $teacher = api_get_user_info($value);
-        if(!$teacher)
-            throwException($req, '400', '[teacher]: The teacher with id ' . $value .' does not exist.');
+        if (!$teacher)
+            throwException($req, '400', '[teacher]: The teacher with id ' . $value . ' does not exist.');
     }
 
     //Check if course code is already in db
@@ -229,7 +230,7 @@ $endpoint->post('/course', function (Request $req, Response $res, $args) use ($e
             throwException($req, '400', '[title]: value is too long.');
         $data['wanted_code'] = CourseManager::generate_course_code($substring);
     }
-    if(api_get_course_info($data['wanted_code']))
+    if (api_get_course_info($data['wanted_code']))
         throwException($req, '400', 'The provided or generated `wanted_code` already exists in database. Try adding a custom `wanted_code`.');
 
     $token = $req->getAttribute("token");
@@ -259,7 +260,114 @@ $endpoint->post('/course', function (Request $req, Response $res, $args) use ($e
 
     return
         $res->withHeader("Content-Type", "application/json")
-            ->withStatus(201);
+        ->withStatus(201);
+});
+
+/**
+ * @OA\Post(
+ *     path="/course/{course_code}/description", tags={"Courses"},
+ *     summary="Add a course description",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\RequestBody(
+ *          @OA\MediaType(
+ *             mediaType="application/json",
+ *             @OA\Schema(
+ *                 required={"description_type,title,content"},
+ *                 @OA\Property(
+ *                     property="description_type",
+ *                     type="integer",
+ *                     description="<small>course description type</small>
+ *  1: GeneralDescription
+ *  2: Objectives
+ *  3: Topics
+ *  4: Methodology
+ *  5: CourseMaterial
+ *  6: HumanAndTechnicalResources
+ *  7: Assessment
+ *  8: ThematicAdvance
+ *  9: Other"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="title",
+ *                     type="string",
+ *                     description="<small>course title.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                      property="content",
+ *                      type="string",
+ *                      description="<small>The introduction text in the course homepage. Accepts HTML.</small>"                  
+ *                 ),
+ *             )
+ *         )
+ *     ),
+ *     @OA\Response(response="201", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->post('/course/{course_code}/description', function (Request $req, Response $res, $args) use ($endpoint) {
+    $data = json_decode($req->getBody()->getContents(), true);
+
+    //Validate params
+    Validator::validate($req, array_merge($data, $args), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'description_type' => new Assert\Required([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'title' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'content' => new Assert\Required([new Assert\Type('string')])
+        ]
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', 'Course not found.');
+
+    $course_id = api_get_course_int_id($args['course_code']);
+
+    $course_description = new CourseDescription();
+    $title = $data['title'];
+    $content = $data['content'];
+    $description_type = intval($data['description_type']);
+
+    $description = $course_description->get_data_by_description_type(
+        $description_type,
+        $course_id
+    );
+
+    if (count($description) > 0) {
+        throwException($req, '422', 'There is already a course description with this type.');
+    }
+
+    $course_description->set_course_id($course_id);
+    $course_description->set_description_type($description_type);
+    $course_description->set_title($title);
+    $course_description->set_content($content);
+    $course_description->set_progress("");
+
+    $added = $course_description->insert();
+
+    if ($added < 1)
+        throwException($req, '422', 'Course description could not be created.');
+
+    $description = $course_description->get_data_by_description_type(
+        $description_type,
+        $course_id
+    );
+
+    //Send created course description data
+    $res->getBody()
+        ->write(json_encode($description, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    return
+        $res->withHeader("Content-Type", "application/json")
+        ->withStatus(201);
 });
 
 /**
@@ -364,7 +472,7 @@ $endpoint->get('/courses/categories', function (Request $req, Response $res, $ar
 
     return
         $res->withHeader("Content-Type", "application/json")
-            ->withStatus(200);
+        ->withStatus(200);
 });
 
 /**
@@ -424,7 +532,7 @@ $endpoint->post('/courses/category', function (Request $req, Response $res, $arg
     $canHaveCourses = 'TRUE';
     $parent_code =  $data['parent_code'] ?: null;
     $parent_category = $parent_code ? CourseCategory::getCategory($parent_code) : null;
-    if(is_array($parent_category) && empty($parent_category))
+    if (is_array($parent_category) && empty($parent_category))
         throwException($req, '400', 'Category parent with code `' . $parent_code . '` does not exist.');
 
     $categoryId = CourseCategory::addNode($code, $name, $canHaveCourses, $parent_category['id']);
@@ -438,7 +546,7 @@ $endpoint->post('/courses/category', function (Request $req, Response $res, $arg
 
     return
         $res->withHeader("Content-Type", "application/json")
-            ->withStatus(201);
+        ->withStatus(201);
 });
 
 /**
@@ -515,7 +623,7 @@ $endpoint->delete('/courses/category/{category_code}', function (Request $req, R
     $category = CourseCategory::getCategory($args['category_code']);
     if (!$category)
         throwException($req, '404', 'Category not found.');
-        
+
     $deleted = CourseCategory::deleteNode($args['category_code']);
     if (!$deleted)
         throwException($req, '422', 'Could not delete category.');
@@ -542,6 +650,7 @@ $endpoint->delete('/courses/category/{category_code}', function (Request $req, R
  *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
  * )
  */
+
 use Chamilo\CourseBundle\Component\CourseCopy\CourseBuilder;
 
 $endpoint->get('/course/{course_code}/resources', function (Request $req, Response $res, $args) use ($endpoint) {
@@ -566,14 +675,14 @@ $endpoint->get('/course/{course_code}/resources', function (Request $req, Respon
         $args['course_code'],
         false
     );
-    if (empty($courseList)) 
+    if (empty($courseList))
         throwException($req, '422', 'Resources could not be listed.');
 
     $res->getBody()
         ->write(json_encode($courseList, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
     return
         $res->withHeader("Content-Type", "application/json")
-            ->withStatus(200);
+        ->withStatus(200);
 });
 
 /**
