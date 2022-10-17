@@ -230,6 +230,39 @@ $endpoint->post('/course/{course_code}/document', function (Request $req, Respon
     $token = $req->getAttribute("token");
     $userId = $token['uid'];
     $path = $data['path'] ?: "/";
+
+    $course_dir = $course['path'] . '/document';
+    $sys_course_path = api_get_path(SYS_COURSE_PATH);
+    $documentDir = $sys_course_path . $course_dir;
+
+    $whereToSave = $documentDir . $path;
+
+    $folderExists = DocumentManager::folderExists(
+        $path,
+        $course,
+        0,
+        0
+    );
+
+    if (!$folderExists) {
+        $dirCreated = create_unexisting_directory(
+            $course,
+            $userId,
+            0,
+            0,
+            0,
+            $documentDir,
+            $path,
+            0,
+            false,
+            false
+        );
+        if (!$dirCreated) {
+            throwException($req, '422', "Path {$whereToSave} doesn't exists and coud not be created.");
+            return false;
+        }
+    }
+
     $result = DocumentManager::upload_document(
         $uploadedFiles,
         $path,
