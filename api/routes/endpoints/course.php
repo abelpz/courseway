@@ -744,6 +744,7 @@ $endpoint->get('/course/{course_code}/backup', function (Request $req, Response 
  *     path="/course/{course_code}/tool/{tool_id}/intro_text", tags={"Courses"},
  *     summary="Adds an introduction text to specified tool",
  *     security={{"bearerAuth": {}}},
+ *     operationId="toolAddIntroText",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning path category is located.",
  *          in="path",
