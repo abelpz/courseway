@@ -738,3 +738,195 @@ $endpoint->get('/course/{course_code}/backup', function (Request $req, Response 
     return
         $res->withStatus(200);
 });
+
+/**
+ * @OA\Post(
+ *     path="/course/{course_code}/tool/{tool_id}/intro_text", tags={"Courses"},
+ *     summary="Adds an introduction text to specified tool",
+ *     security={{"bearerAuth": {}}},
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the learning path category is located.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="The id of the tool.",
+ *          in="path",
+ *          name="tool_id",
+ *          required=true,
+ *          @OA\Schema(
+ *              type="integer",
+ *              enum={
+ *                "document",
+ *                "final_item",
+ *                "readout_text",
+ *                "thumbnail",
+ *                "hotpotatoes",
+ *                "calendar_event",
+ *                "link",
+ *                "link_category",
+ *                "course_description",
+ *                "search",
+ *                "learnpath",
+ *                "learnpath_category",
+ *                "agenda",
+ *                "announcement",
+ *                "forum",
+ *                "forum_category",
+ *                "forum_thread",
+ *                "forum_post",
+ *                "forum_attachment",
+ *                "forum_thread_qualify",
+ *                "thread",
+ *                "post",
+ *                "dropbox",
+ *                "quiz",
+ *                "test_category",
+ *                "user",
+ *                "group",
+ *                "blog_management",
+ *                "chat",
+ *                "student_publication",
+ *                "tracking",
+ *                "homepage_link",
+ *                "course_setting",
+ *                "backup",
+ *                "copy_course_content",
+ *                "recycle_course",
+ *                "course_homepage",
+ *                "course_rights",
+ *                "file_upload",
+ *                "course_maintenance",
+ *                "survey",
+ *                "wiki",
+ *                "glossary",
+ *                "gradebook",
+ *                "notebook",
+ *                "attendance",
+ *                "course_progress",
+ *                "portfolio",
+ *                "compilatio",
+ *                "xapi"
+ *              }
+ *          ),
+ *     ),
+ *     @OA\RequestBody(
+ *          @OA\MediaType(
+ *             mediaType="application/json",
+ *             @OA\Schema(
+ *                 required={"intro_text"},
+ *                 @OA\Property(
+ *                      property="intro_text",
+ *                      type="string",
+ *                      description="<small>The introduction text for the tool. Accepts HTML.</small>"                  
+ *                 ),
+ *                 @OA\Property(
+ *                      property="session_id",
+ *                      type="integer",
+ *                      description="<small>Session Id as integer.</small>",
+ *                 )
+ *             )
+ *         )
+ *     ),
+ *     @OA\Response(response="201", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->post('/course/{course_code}/tool/{tool_id}/intro_text', function (Request $req, Response $res, $args) use ($endpoint) {
+    $data = json_decode($req->getBody()->getContents(), true);
+
+    //Validate params
+    Validator::validate($req, array_merge($data, $args), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'tool_id' => new Assert\Required([new Assert\Choice([
+                'document',
+                'final_item',
+                'readout_text',
+                'thumbnail',
+                'hotpotatoes',
+                'calendar_event',
+                'link',
+                'link_category',
+                'course_description',
+                'search',
+                'learnpath',
+                'learnpath_category',
+                'agenda',
+                'announcement',
+                'forum',
+                'forum_category',
+                'forum_thread',
+                'forum_post',
+                'forum_attachment',
+                'forum_thread_qualify',
+                'thread',
+                'post',
+                'dropbox',
+                'quiz',
+                'test_category',
+                'user',
+                'group',
+                'blog_management',
+                'chat',
+                'student_publication',
+                'tracking',
+                'homepage_link',
+                'course_setting',
+                'backup',
+                'copy_course_content',
+                'recycle_course',
+                'course_homepage',
+                'course_rights',
+                'file_upload',
+                'course_maintenance',
+                'survey',
+                'wiki',
+                'glossary',
+                'gradebook',
+                'notebook',
+                'attendance',
+                'course_progress',
+                'portfolio',
+                'compilatio',
+                'xapi',
+            ])]),
+            'intro_text' => new Assert\Required([new Assert\Type('string')]),
+            'session_id' => new Assert\Optional([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric')
+            ])
+        ]
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
+
+    $manager = Database::getManager();
+    $toolIntro = new Chamilo\CourseBundle\Entity\CToolIntro();
+    $toolIntro
+        ->setCId($course['real_id'])
+        ->setId($args['tool_id'])
+        ->setSessionId($data['session_id'] || 0)
+        ->setIntroText($data['intro_text']);
+    $manager->persist($toolIntro);
+    $manager->flush();
+
+    $intro_text = $toolIntro->getIntroText();
+
+    //Send created course data
+    $res->getBody()
+        ->write(json_encode($intro_text, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    return
+        $res->withHeader("Content-Type", "application/json")
+        ->withStatus(201);
+});

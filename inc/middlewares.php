@@ -21,7 +21,7 @@ class GroupValidation
     $body = $request->getBody();
 
     $token = $request->getAttribute("token");
-    if($token){
+    if ($token) {
       $user = UserManager::getManager()->findUserByUsername($token['uname']);
       if (!$user)
         throwException($request, '404', 'User not found.');
@@ -29,7 +29,7 @@ class GroupValidation
         throwException($request, '401', 'User must be an administrator.');
     }
 
-    if($request->getHeaderLine('Content-Type') == 'application/json' && !json_decode($body->getContents(), true)){
+    if ($request->getHeaderLine('Content-Type') == 'application/json' && !json_decode($body->getContents(), true)) {
       throw new HttpBadRequestException($request, 'Check your request syntax.');
     }
 
