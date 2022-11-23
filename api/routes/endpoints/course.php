@@ -746,7 +746,7 @@ $endpoint->get('/course/{course_code}/backup', function (Request $req, Response 
  *     security={{"bearerAuth": {}}},
  *     operationId="toolAddIntroText",
  *     @OA\Parameter(
- *          description="unique string identifier of the course in which the learning path category is located.",
+ *          description="unique string identifier of the course.",
  *          in="path",
  *          name="course_code",
  *          required=true,
@@ -930,4 +930,294 @@ $endpoint->post('/course/{course_code}/tool/{tool_id}/intro_text', function (Req
     return
         $res->withHeader("Content-Type", "application/json")
         ->withStatus(201);
+});
+
+/**
+ * @OA\Get(
+ *     path="/course/{course_code}/tool/glossary", tags={"Courses"},
+ *     summary="Get list of terms from course glossary",
+ *     security={{"bearerAuth": {}}},
+ *     operationId="toolGetGlossaryTerms",
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Response(response="201", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->get('/course/{course_code}/tool/glossary', function (Request $req, Response $res, $args) use ($endpoint) {
+
+    //Validate params
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ])
+        ]
+    ]));
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
+
+    $terms = CWGlossaryManager::get_glossary_terms($course);
+    if (!$terms)
+        throwException($req, '404', "Terms not found.");
+    //Send created term
+    $res->getBody()
+        ->write(json_encode($terms, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    return
+        $res->withHeader("Content-Type", "application/json")
+        ->withStatus(201);
+});
+
+/**
+ * @OA\Post(
+ *     path="/course/{course_code}/tool/glossary", tags={"Courses"},
+ *     summary="Adds a new term to the course glossary tool",
+ *     security={{"bearerAuth": {}}},
+ *     operationId="toolAddGlossaryTerm",
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\RequestBody(
+ *          @OA\MediaType(
+ *             mediaType="application/json",
+ *             @OA\Schema(
+ *                 required={"name"},
+ *                 @OA\Property(
+ *                      property="name",
+ *                      type="string",
+ *                      description="<small>The name of the term. (must be unique)</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                      property="description",
+ *                      type="string",
+ *                      description="<small>The definition of the term.</small>",
+ *                 )
+ *             )
+ *         )
+ *     ),
+ *     @OA\Response(response="201", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->post('/course/{course_code}/tool/glossary', function (Request $req, Response $res, $args) use ($endpoint) {
+    $data = json_decode($req->getBody()->getContents(), true);
+
+    //Validate params
+    Validator::validate($req, array_merge($data, $args), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'name' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'description' => new Assert\Optional([new Assert\Type('string')]),
+        ]
+    ]));
+
+    $token = $req->getAttribute("token");
+    $user_id = $token['uid'];
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
+
+    $termId = CWGlossaryManager::save_glossary([
+        'name' => $data['name'],
+        'description' => $data['description'],
+    ], $course, $user_id);
+
+    if (!$termId)
+        throwException($req, '500', "Term could not be created due to a client or server error.");
+
+    $term = CWGlossaryManager::get_glossary_term_by_glossary_id($termId, $course);
+    //Send created term
+    $res->getBody()
+        ->write(json_encode($term, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    return
+        $res->withHeader("Content-Type", "application/json")
+        ->withStatus(201);
+});
+
+/**
+ * @OA\Patch(
+ *     path="/course/{course_code}/tool/glossary/{glossary_id}", tags={"Courses"},
+ *     summary="Edits a glossary term by id.",
+ *     security={{"bearerAuth": {}}},
+ *     operationId="toolEditGlossaryTerm",
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique integer identifier of the glossary term.",
+ *          in="path",
+ *          name="glossary_id",
+ *          required=true,
+ *          @OA\Schema(type="integer"),
+ *     ),
+ *     @OA\RequestBody(
+ *          @OA\MediaType(
+ *             mediaType="application/json",
+ *             @OA\Schema(
+ *  *              required={"name"},
+ *                 @OA\Property(
+ *                      property="name",
+ *                      type="string",
+ *                      description="<small>The name of the term. (must be unique)</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                      property="description",
+ *                      type="string",
+ *                      description="<small>The definition of the term.</small>",
+ *                 )
+ *             )
+ *         )
+ *     ),
+ *     @OA\Response(response="201", description="Created"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->patch('/course/{course_code}/tool/glossary/{glossary_id}', function (Request $req, Response $res, $args) use ($endpoint) {
+    $data = json_decode($req->getBody()->getContents(), true);
+
+    //Validate params
+    Validator::validate($req, array_merge($data, $args), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'glossary_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric'),
+            ]),
+            'name' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'description' => new Assert\Optional([new Assert\Type('string')]),
+        ]
+    ]));
+
+
+    $token = $req->getAttribute("token");
+    $user_id = $token['uid'];
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
+
+    $term = CWGlossaryManager::get_glossary_term_by_glossary_id($args['glossary_id'], $course);
+    if (!$term)
+        throwException($req, '404', "Glossary term with id `{$args['glossary_id']}` not found.");
+
+    $updated = CWGlossaryManager::update_glossary([
+        'name' => $data['name'],
+        'description' => $data['description'],
+        'glossary_id' => $args['glossary_id'],
+    ], $course, $user_id);
+
+    if ($updated['error'])
+        throwException($req, '500', json_encode($updated['error'], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    $term = CWGlossaryManager::get_glossary_term_by_glossary_id($args['glossary_id'], $course);
+
+    //Send created term
+    $res->getBody()
+        ->write(json_encode($term, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    return
+        $res->withHeader("Content-Type", "application/json")
+        ->withStatus(201);
+});
+
+/**
+ * @OA\Delete(
+ *     path="/course/{course_code}/tool/glossary/{glossary_id}", tags={"Courses"},
+ *     summary="Deletes a glossary term by id.",
+ *     security={{"bearerAuth": {}}},
+ *     operationId="toolDeleteGlossaryTerm",
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique integer identifier of the glossary term.",
+ *          in="path",
+ *          name="glossary_id",
+ *          required=true,
+ *          @OA\Schema(type="integer"),
+ *     ),
+ *     @OA\Response(response="204", description="Success"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+$endpoint->delete('/course/{course_code}/tool/glossary/{glossary_id}', function (Request $req, Response $res, $args) use ($endpoint) {
+    $data = json_decode($req->getBody()->getContents(), true);
+
+    //Validate params
+    Validator::validate($req, $args, new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'glossary_id' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('numeric'),
+            ]),
+        ]
+    ]));
+
+
+    $token = $req->getAttribute("token");
+    $user_id = $token['uid'];
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
+
+    $term = CWGlossaryManager::get_glossary_term_by_glossary_id($args['glossary_id'], $course);
+    if (!$term)
+        throwException($req, '404', "Glossary term with id `{$args['glossary_id']}` not found.");
+
+    $deleted = CWGlossaryManager::delete_glossary($args['glossary_id'], $course, $user_id);
+
+    if (!$deleted)
+        throwException($req, '500', "Could not delete glossary term.");
+
+    return
+        $res->withHeader("Content-Type", "application/json")
+        ->withStatus(204);
 });
