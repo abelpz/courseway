@@ -13,6 +13,7 @@ use CourseWay\Validation\Validator;
  *     tags={"Courses"},
  *     summary="Get list of courses",
  *     security={{"bearerAuth": {}}},
+ *     operationId="courseGetList",
  *     @OA\Parameter(
  *          name="from",
  *          description="Offset (from the 7th = '6'). Optional.",
@@ -96,6 +97,7 @@ $endpoint->get('/courses', function (Request $req, Response $res, $args) use ($e
  * @OA\Post(
  *     path="/course", tags={"Courses"},
  *     summary="Add a course",
+ *     operationId="courseCreate",
  *     security={{"bearerAuth": {}}},
  *     @OA\RequestBody(
  *          @OA\MediaType(
@@ -268,6 +270,14 @@ $endpoint->post('/course', function (Request $req, Response $res, $args) use ($e
  *     path="/course/{course_code}/description", tags={"Courses"},
  *     summary="Add a course description",
  *     security={{"bearerAuth": {}}},
+ *     operationId="courseAddDescription",
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course in which the tests are located.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
  *     @OA\RequestBody(
  *          @OA\MediaType(
  *             mediaType="application/json",
@@ -375,6 +385,7 @@ $endpoint->post('/course/{course_code}/description', function (Request $req, Res
  *     path="/course/{course_code}", tags={"Courses"},
  *     summary="Get course by course code",
  *     security={{"bearerAuth": {}}},
+ *     operationId="courseGet",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the tests are located.",
  *          in="path",
@@ -416,6 +427,7 @@ $endpoint->get('/course/{course_code}', function (Request $req, Response $res, $
  *     path="/course/{course_code}", tags={"Courses"},
  *     summary="Delete course by course code",
  *     security={{"bearerAuth": {}}},
+ *     operationId="courseDelete",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the tests are located.",
  *          in="path",
@@ -457,6 +469,7 @@ $endpoint->delete('/course/{course_code}', function (Request $req, Response $res
  *     path="/courses/categories", tags={"Courses"},
  *     summary="Get list of categories",
  *     security={{"bearerAuth": {}}},
+ *     operationId="courseGetCategories",
  *     @OA\Response(response="200", description="Success"),
  *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
  *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
@@ -480,6 +493,7 @@ $endpoint->get('/courses/categories', function (Request $req, Response $res, $ar
  *     path="/courses/category", tags={"Courses"},
  *     summary="Add a category",
  *     security={{"bearerAuth": {}}},
+ *     operationId="courseAddCategory",
  *     @OA\RequestBody(
  *          @OA\MediaType(
  *             mediaType="application/json",
@@ -554,6 +568,7 @@ $endpoint->post('/courses/category', function (Request $req, Response $res, $arg
  *     path="/courses/category/{category_code}", tags={"Courses"},
  *     summary="Get category by category code",
  *     security={{"bearerAuth": {}}},
+ *     operationId="courseGetCategory",
  *     @OA\Parameter(
  *          description="unique string identifier of the category.",
  *          in="path",
@@ -595,6 +610,7 @@ $endpoint->get('/courses/category/{category_code}', function (Request $req, Resp
  *     path="/courses/category/{category_code}", tags={"Courses"},
  *     summary="Delete category by category code",
  *     security={{"bearerAuth": {}}},
+ *     operationId="courseDeleteCategory",
  *     @OA\Parameter(
  *          description="unique string identifier of the category.",
  *          in="path",
@@ -638,6 +654,7 @@ $endpoint->delete('/courses/category/{category_code}', function (Request $req, R
  *     path="/course/{course_code}/resources", tags={"Courses"},
  *     summary="Get list of resources in course",
  *     security={{"bearerAuth": {}}},
+ *     operationId="courseGetResources",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the tests are located.",
  *          in="path",
@@ -690,6 +707,7 @@ $endpoint->get('/course/{course_code}/resources', function (Request $req, Respon
  *     path="/course/{course_code}/backup", tags={"Courses"},
  *     summary="Get backup of a course",
  *     security={{"bearerAuth": {}}},
+ *     operationId="courseGetBackup",
  *     @OA\Parameter(
  *          description="unique string identifier of the course to backup.",
  *          in="path",
@@ -758,7 +776,7 @@ $endpoint->get('/course/{course_code}/backup', function (Request $req, Response 
  *          name="tool_id",
  *          required=true,
  *          @OA\Schema(
- *              type="integer",
+ *              type="string",
  *              enum={
  *                "document",
  *                "final_item",

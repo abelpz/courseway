@@ -11,6 +11,7 @@ use CourseWay\Validation\Validator;
  *     path="/course/{course_code}/learningpaths", tags={"Learning Paths"},
  *     summary="Get list of learning paths from course",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpGetList",
  *     @OA\Parameter(
  *          description="the id of the course from which to list the learning paths",
  *          in="path",
@@ -55,6 +56,7 @@ $endpoint->get('/course/{course_code}/learningpaths', function (Request $req, Re
  *     path="/course/{course_code}/learningpath", tags={"Learning Paths"},
  *     summary="Create a learning path in a course",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpCreate",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning path will be added.",
  *          in="path",
@@ -168,6 +170,7 @@ $endpoint->post('/course/{course_code}/learningpath', function (Request $req, Re
  *     path="/course/{course_code}/learningpath/{learningpath_id}", tags={"Learning Paths"},
  *     summary="Get a learning path from a course",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpGet",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning is located.",
  *          in="path",
@@ -227,6 +230,7 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}', function 
  *     path="/course/{course_code}/learningpath/{learningpath_id}", tags={"Learning Paths"},
  *     summary="Delete a learning path in a course",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpDelete",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning is located.",
  *          in="path",
@@ -292,6 +296,7 @@ $endpoint->delete('/course/{course_code}/learningpath/{learningpath_id}', functi
  *     path="/course/{course_code}/learningpaths/categories", tags={"Learning Paths"},
  *     summary="List learning paths categories from course",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpGetCategories",
  *      @OA\Parameter(
  *          description="the id of the course from which to list the learning path categories",
  *          in="path",
@@ -346,6 +351,7 @@ $endpoint->get('/course/{course_code}/learningpaths/categories', function (Reque
  *     path="/course/{course_code}/learningpaths/category", tags={"Learning Paths"},
  *     summary="Create a learning path category in a course",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpCreateCategory",
  *     @OA\Parameter(
  *          description="unique int identifier of the course in which the learning path category will be added.",
  *          in="path",
@@ -415,6 +421,7 @@ $endpoint->post('/course/{course_code}/learningpaths/category', function (Reques
  *     path="/course/{course_code}/learningpaths/category/{category_id}", tags={"Learning Paths"},
  *     summary="Get a learning path category from a course",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpGetCategory",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning path category is located.",
  *          in="path",
@@ -474,6 +481,7 @@ $endpoint->get('/course/{course_code}/learningpaths/category/{category_id}', fun
  *     path="/course/{course_code}/learningpaths/category/{category_id}", tags={"Learning Paths"},
  *     summary="Delete a learning path category from a course",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpDeleteCategory",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning path category is located.",
  *          in="path",
@@ -535,6 +543,7 @@ $endpoint->delete('/course/{course_code}/learningpaths/category/{category_id}', 
  *     path="/course/{course_code}/learningpath/{learningpath_id}/items", tags={"Learning Paths"},
  *     summary="List items (including sections) from course's learning path",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpGetItems",
  *     @OA\Parameter(
  *          description="unique string identifier of the course from which the learning path sections will be listed.",
  *          in="path",
@@ -600,6 +609,7 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/items', fun
  *     path="/course/{course_code}/learningpath/{learningpath_id}/section", tags={"Learning Paths"},
  *     summary="Add section to learning path",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpCreateSection",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning path section will be added.",
  *          in="path",
@@ -718,6 +728,7 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/section', 
  *     summary="Creates an item in a learning path from a resource",
  *     operationId="lpAddItem",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpCreateItem",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning path section will be added.",
  *          in="path",
@@ -872,6 +883,7 @@ $endpoint->patch('/course/{course_code}/learningpath/{learningpath_id}/item', fu
  *     path="/course/{course_code}/learningpath/{learningpath_id}/section/{section_id}", tags={"Learning Paths"},
  *     summary="Get section from learning path",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpGetSection",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning path section is located.",
  *          in="path",
@@ -952,6 +964,7 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/section/{s
  *     path="/course/{course_code}/learningpath/{learningpath_id}/section/{section_id}", tags={"Learning Paths"},
  *     summary="Delete section from learning path",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpDeleteSection",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning path section is located.",
  *          in="path",
@@ -1033,6 +1046,7 @@ $endpoint->delete('/course/{course_code}/learningpath/{learningpath_id}/section/
  *     path="/course/{course_code}/learningpath/{learningpath_id}/scorm", tags={"Learning Paths"},
  *     summary="Get learningpath as scorm package",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpExportScorm",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning path is located.",
  *          in="path",
@@ -1102,6 +1116,7 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/scorm', fun
  *     path="/course/{course_code}/learningpath/scorm", tags={"Learning Paths"},
  *     summary="Create learningpath from scorm package",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpImportScorm",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning path is located.",
  *          in="path",
@@ -1200,6 +1215,7 @@ $endpoint->post('/course/{course_code}/learningpath/scorm', function (Request $r
  *     path="/course/{course_code}/learningpath/{learningpath_id}/item/{lp_item_id}/audio", tags={"Learning Paths"},
  *     summary="Add audio to learning path item",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpItemUploadAudio",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning path is located.",
  *          in="path",
@@ -1309,6 +1325,7 @@ $endpoint->post('/course/{course_code}/learningpath/{learningpath_id}/item/{lp_i
  *     path="/course/{course_code}/learningpath/{learningpath_id}/item/{lp_item_id}/audio", tags={"Learning Paths"},
  *     summary="Add existing audio document to learning path item",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpItemAddExistingAudio",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning path is located.",
  *          in="path",

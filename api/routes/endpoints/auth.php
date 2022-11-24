@@ -11,6 +11,7 @@ use CourseWay\Validation\Validator;
  * @OA\Post(
  *     path="/auth", tags={"Auth"},
  *     summary="Authorize user",
+ *     operationId="userCreateToken",
  *     @OA\RequestBody(
  *          @OA\MediaType(
  *             mediaType="application/json",
@@ -93,7 +94,7 @@ $endpoint->post('/auth', function (Request $req, Response $res, array $args) {
     $res->getBody()
         ->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
 
-    return 
+    return
         $res->withStatus(201)
-            ->withHeader("Content-Type", "application/json");
+        ->withHeader("Content-Type", "application/json");
 });

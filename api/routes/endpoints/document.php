@@ -11,6 +11,7 @@ use CourseWay\Validation\Validator;
  *     path="/course/{course_code}/documents", tags={"Documents"},
  *     summary="Get list of documents in course",
  *     security={{"bearerAuth": {}}},
+ *     operationId="courseGetDocuments",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning path documents are located.",
  *          in="path",
@@ -65,6 +66,7 @@ $endpoint->get('/course/{course_code}/documents', function (Request $req, Respon
  *     path="/course/{course_code}/documents/image", tags={"Documents"},
  *     summary="Upload an image into a course",
  *     security={{"bearerAuth": {}}},
+ *     operationId="courseUploadImage",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning path section will be added.",
  *          in="path",
@@ -160,6 +162,7 @@ $endpoint->post('/course/{course_code}/documents/image', function (Request $req,
  *     path="/course/{course_code}/document", tags={"Documents"},
  *     summary="Upload a document into a course",
  *     security={{"bearerAuth": {}}},
+ *     operationId="courseUploadDocument",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning path section will be added.",
  *          in="path",
@@ -294,6 +297,7 @@ $endpoint->post('/course/{course_code}/document', function (Request $req, Respon
  *     path="/course/{course_code}/document/{document_id}", tags={"Documents"},
  *     summary="Get a document from a course.",
  *     security={{"bearerAuth": {}}},
+ *     operationId="courseGetDocument",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the documend is located.",
  *          in="path",
@@ -353,6 +357,7 @@ $endpoint->get('/course/{course_code}/document/{document_id}', function (Request
  *     path="/course/{course_code}/document/{document_id}", tags={"Documents"},
  *     summary="Soft delete a document from a course.",
  *     security={{"bearerAuth": {}}},
+ *     operationId="courseDeleteDocument",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the documend is located.",
  *          in="path",
@@ -413,6 +418,7 @@ $endpoint->delete('/course/{course_code}/document/{document_id}', function (Requ
  *     path="/course/{course_code}/learningpath/{learningpath_id}/documents", tags={"Documents"},
  *     summary="Get list of documents in learning path",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpGetDocuments",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning path documents are located.",
  *          in="path",
@@ -507,6 +513,7 @@ $endpoint->get('/course/{course_code}/learningpath/{learningpath_id}/documents',
  *     path="/course/{course_code}/learningpath/{learningpath_id}/document", tags={"Documents"},
  *     summary="Create a document in a learning path",
  *     security={{"bearerAuth": {}}},
+ *     operationId="lpCreateDocument",
  *     @OA\Parameter(
  *          description="unique string identifier of the course in which the learning path section will be added.",
  *          in="path",
