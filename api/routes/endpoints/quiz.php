@@ -384,6 +384,353 @@ $endpoint->post('/course/{course_code}/test', function (Request $req, Response $
         ->withStatus(201);
 });
 
+
+
+/**
+ * @OA\Patch(
+ *     path="/course/{course_code}/test/{test_id}", tags={"Tests"},
+ *     summary="Edit a test in a course",
+ *     security={{"bearerAuth": {}}},
+ *     operationId="testEdit",
+ *     @OA\Parameter(
+ *          description="unique string identifier of the course.",
+ *          in="path",
+ *          name="course_code",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\Parameter(
+ *          description="unique string identifier of the test.",
+ *          in="path",
+ *          name="test_id",
+ *          required=true,
+ *          @OA\Schema(type="string"),
+ *     ),
+ *     @OA\RequestBody(
+ *          @OA\MediaType(
+ *             mediaType="application/json",
+ *             @OA\Schema(
+ *                 @OA\Property(
+ *                     property="title",
+ *                     type="string",
+ *                     description="<small>Unique string identifier for this test</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="update_title_in_lps",
+ *                     type="integer",
+ *                     description="<small>Setting this to 1  will update the new title in learning paths too.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="description",
+ *                     type="string",
+ *                     description="<small>This test description. Can be HTML</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="type",
+ *                     type="integer",
+ *                     description="<small>Test type.</small>
+ *  1: all questions on one page
+ *  2: one question by page"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="feedback_type",
+ *                     type="integer",
+ *                     description="<small>the exercise feedback type</small>
+ *  0: At end of test
+ *  1: Adaptative test with immediate feedback
+ *  2: Exam (no feedback)
+ *  3: Direct feedback as pop-up"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="attempts",
+ *                     type="integer",
+ *                     description="<small>the exercise max attempts.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="random",
+ *                     type="integer",
+ *                     description="<small>sets to 0 if questions are not selected randomly if questions are selected randomly, sets to 1.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="random_answers",
+ *                     type="integer",
+ *                     description="<small>sets to 0 if answers are not selected randomly, set to 1 if answers are selected randomly.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="results_disabled",
+ *                     type="integer",
+ *                     description="<small></small>
+ *  0: Auto-evaluation mode: show score and expected answers
+ *  1: Exam mode: Do not show score nor answers
+ *  2: Practice mode: Show score only, by category if at least one is used
+ *  4: Show score on every attempt, show correct answers only on last attempt (only works with an attempts limit)
+ *  5: Do not show the score (only when user finishes all attempts) but show feedback for each attempt.
+ *  6: Ranking mode: Do not show results details question by question and show a table with the ranking of all other users.
+ *  7: Show only global score (not question score) and show only the correct answers, do not show incorrect answers at all
+ *  8: Auto-evaluation mode and ranking
+ *  9: Only show a radar of scores by category, instead of a table of categories. Do not show individual scores or feedback.
+ *  10: Show the result to the learner: Show the score, the learner's choice and his feedback on each attempt, add the correct answer and his feedback when the chosen limit of attempts is reached."
+ *                 ),
+ *                 @OA\Property(
+ *                     property="expired_time",
+ *                     type="integer",
+ *                     description="<small>The expired time of the quiz</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="propagate_neg",
+ *                     type="integer",
+ *                     description="<small>set to 1 if should propagate negative results between questions.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="saveCorrectAnswers",
+ *                     type="integer",
+ *                     description="<small>Set to one if should save the correct answer for the next attempt</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="randomByCat",
+ *                     type="integer",
+ *                     description="<small>No documentation.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="text_when_finished",
+ *                     type="string",
+ *                     description="<small>Text appearing at the end of the test.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="display_category_name",
+ *                     type="integer",
+ *                     description="<small>is an integer 0 or 1.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="review_answers",
+ *                     type="integer",
+ *                     description="<small>is an integer 0 or 1.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="pass_percentage",
+ *                     type="integer",
+ *                     description="<small>Pass percentage.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="categories",
+ *                     type="array",
+ *                     description="<small>Array of test categories</small>",
+ *                     @OA\Items(
+ *                         type="integer"
+ *                     )
+ *                 ),
+ *                 @OA\Property(
+ *                     property="onSuccessMessage",
+ *                     type="string",
+ *                     description="<small>No documentation.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="onFailedMessage",
+ *                     type="string",
+ *                     description="<small>No documentation.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="emailNotificationTemplate",
+ *                     type="string",
+ *                     description="<small>No documentation.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="emailNotificationTemplateToUser",
+ *                     type="string",
+ *                     description="<small>No documentation.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="notifyUserByEmail",
+ *                     type="integer",
+ *                     description="<small>No documentation.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="modelType",
+ *                     type="integer",
+ *                     description="<small>No documentation.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="questionSelectionType",
+ *                     type="integer",
+ *                     description="<small>No documentation.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="hideQuestionTitle",
+ *                     type="integer",
+ *                     description="<small>No documentation.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="scoreTypeModel",
+ *                     type="integer",
+ *                     description="<small>No documentation.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="globalCategoryId",
+ *                     type="integer",
+ *                     description="<small>No documentation.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="showPreviousButton",
+ *                     type="integer",
+ *                     description="<small>No documentation.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="exerciseCategoryId",
+ *                     type="integer",
+ *                     description="<small>No documentation.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="hideQuestionNumber",
+ *                     type="integer",
+ *                     description="<small>No documentation.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="preventBackwards",
+ *                     type="integer",
+ *                     description="<small>No documentation.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="activate_start_date_check",
+ *                     type="integer",
+ *                     description="<small>if set to 1 sets value provided in start_time property.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="start_time",
+ *                     type="string",
+ *                     description="<small>Date to be converted (can be a string supported by date() or a timestamp).</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="activate_end_date_check",
+ *                     type="integer",
+ *                     description="<small>if set to 1 sets value provided in end_time property.</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="end_time",
+ *                     type="string",
+ *                     description="<small>Date to be converted (can be a string supported by date() or a timestamp).</small>"
+ *                 ),
+ *                 @OA\Property(
+ *                     property="enabletimercontrol",
+ *                     type="integer",
+ *                     description="<small>if set to 1 sets value provided in expired_time property.</small>"
+ *                 )
+ *             )
+ *         )
+ *     ),
+ *     @OA\Response(response="204", description="Success"),
+ *     @OA\Response(response="4XX",ref="#/components/responses/ClientError"),
+ *     @OA\Response(response="5XX",ref="#/components/responses/ServerError"),
+ * )
+ */
+
+// [[TO DO: add new config params]]
+
+$endpoint->patch('/course/{course_code}/test/{test_id}', function (Request $req, Response $res, $args) use ($endpoint) {
+    $data = json_decode($req->getBody()->getContents(), true);
+
+    Validator::validate($req, array_merge($data, $args), new Assert\Collection([
+        'fields' => [
+            'course_code' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'title' => new Assert\Required([
+                new Assert\NotBlank(),
+                new Assert\Type('string')
+            ]),
+            'update_title_in_lps' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'description' => new Assert\Optional([new Assert\Type('string')]),
+            'type' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'feedback_type' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'attempts' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'random' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'random_answers' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'results_disabled' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'expired_time' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'propagate_neg' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'saveCorrectAnswers' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'randomByCat' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'text_when_finished' => new Assert\Optional([new Assert\Type('string')]),
+            'display_category_name' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'review_answers' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'pass_percentage' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'categories' => new Assert\Optional([
+                new Assert\Type('array'),
+                new Assert\All([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            ]),
+            'onSuccessMessage' => new Assert\Optional([new Assert\Type('string')]),
+            'onFailedMessage' => new Assert\Optional([new Assert\Type('string')]),
+            'emailNotificationTemplate' => new Assert\Optional([new Assert\Type('string')]),
+            'emailNotificationTemplateToUser' => new Assert\Optional([new Assert\Type('string')]),
+            'notifyUserByEmail' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'modelType' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'questionSelectionType' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'hideQuestionTitle' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'scoreTypeModel' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'globalCategoryId' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'showPreviousButton' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'exerciseCategoryId' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'hideQuestionNumber' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'preventBackwards' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'activate_start_date_check' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'start_time' => new Assert\Optional([new Assert\Type('string')]),
+            'activate_end_date_check' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+            'end_time' => new Assert\Optional([new Assert\Type('string')]),
+            'enabletimercontrol' => new Assert\Optional([new Assert\Type('integer'), new Assert\PositiveOrZero()]),
+        ],
+        'allowExtraFields' => true
+    ]));
+
+    if (in_array($data['feedback_type'], [0, 1, 3])) {
+        Validator::validate($req, $data, new Assert\Collection([
+            'fields' => [
+                'results_disabled' => new Assert\Optional([new Assert\Choice([0, 4, 6, 7, 8, 9, 10])])
+            ],
+            'allowExtraFields' => true
+        ]));
+        $data['results_disabled'] = $data['results_disabled'] ?: 0;
+    }
+
+
+    if ($data['feedback_type'] === 1) {
+        Validator::validate($req, $data, new Assert\Collection([
+            'fields' => [
+                'type' => new Assert\Optional([new Assert\IdenticalTo([
+                    'value' => 2,
+                    'message' => 'If `feedback_type` is set to 1, `type` should be set to 2.'
+                ])])
+            ],
+            'allowExtraFields' => true
+        ]));
+        $data['type'] = $data['type'] ?: 2;
+    }
+
+    $course = api_get_course_info($args['course_code']);
+    if (!$course)
+        throwException($req, '404', "Course with code `{$args['course_code']}` not found.");
+
+    $excercise = getExercise($course, $args['test_id']);
+    if (!$excercise)
+        throwException($req, '404', "Test with id `{$args['test_id']}` not found.");
+
+    $courseId = $course['real_id'];
+
+    $exerciseId = createExercise($courseId, $data, $args['test_id'], '');
+
+    if (!$exerciseId)
+        throwException($req, '422', 'Test could not be updated.');
+
+    $excercise = getExercise($course, $exerciseId);
+
+    $res->getBody()
+        ->write(json_encode($excercise[0], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+
+    return $res
+        ->withHeader("Content-Type", "application/json")
+        ->withStatus(201);
+});
+
+
 /**
  * @OA\Get(
  *     path="/course/{course_code}/test/{test_id}", tags={"Tests"},

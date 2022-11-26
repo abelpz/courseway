@@ -2,12 +2,12 @@
 
 class CWQuestion extends Question
 {
-    public function createAnswersForm($form)
-    {
-    }
-    public function processAnswersCreation($form, $exercise)
-    {
-    }
+  public function createAnswersForm($form)
+  {
+  }
+  public function processAnswersCreation($form, $exercise)
+  {
+  }
 }
 
 function getExercises($course)
@@ -55,51 +55,51 @@ function createExercise($courseId, $data, $id = null, $type = '')
     }
   }
 
-  $exercise->updateTitle(Exercise::format_title_variable($data['title']));
-  $exercise->updateDescription($data['description']);
-  $exercise->updateAttempts($data['attempts'] ?? 0);
-  $exercise->updateFeedbackType($data['feedback_type'] ?? 0);
-  $exercise->updateType($data['type'] ?? ONE_PER_PAGE); //exercise type
+  if ($data['title']) $exercise->updateTitle(Exercise::format_title_variable($data['title']));
+  if ($data['description']) $exercise->updateDescription($data['description']);
+  if ($data['attempts']) $exercise->updateAttempts($data['attempts'] ?? 0);
+  if ($data['feedback_type']) $exercise->updateFeedbackType($data['feedback_type'] ?? 0);
+  if ($data['type']) $exercise->updateType($data['type'] ?? ONE_PER_PAGE); //exercise type
 
   // If direct feedback then force to One per page
   if (EXERCISE_FEEDBACK_TYPE_DIRECT == $data['feedback_type']) {
     $exercise->updateType(ONE_PER_PAGE);
   }
 
-  $exercise->setRandom($data['random'] ?? 0); //random questions
-  $exercise->updateRandomAnswers($data['random_answers'] ?? 0);
-  $exercise->updateResultsDisabled($data['results_disabled'] ?? 0);
-  $exercise->updateExpiredTime($data['expired_time'] ?? 0);
-  $exercise->updatePropagateNegative($data['propagate_neg'] ?? 0);
-  $exercise->updateSaveCorrectAnswers($data['saveCorrectAnswers'] ?? 0);
-  $exercise->updateRandomByCat($data['randomByCat'] ?? 0);
-  $exercise->updateTextWhenFinished($data['text_when_finished'] ?? '');
-  $exercise->updateDisplayCategoryName($data['display_category_name'] ?? 1);
-  $exercise->updateReviewAnswers($data['review_answers'] ?? 0);
-  $exercise->updatePassPercentage($data['pass_percentage'] ?? 0);
-  $exercise->updateCategories($data['categories']);
-  $exercise->updateEndButton($data['endButton']);
-  $exercise->setOnSuccessMessage($data['onSuccessMessage']);
-  $exercise->setOnFailedMessage($data['onFailedMessage']);
-  $exercise->updateEmailNotificationTemplate($data['emailNotificationTemplate']);
-  $exercise->setEmailNotificationTemplateToUser($data['emailNotificationTemplateToUser']);
-  $exercise->setNotifyUserByEmail($data['notifyUserByEmail']);
-  $exercise->setModelType($data['modelType'] ?? 1);
-  $exercise->setQuestionSelectionType($data['questionSelectionType'] ?? 0);
-  $exercise->setHideQuestionTitle($data['hideQuestionTitle'] ?? 0);
+  if ($data['random']) $exercise->setRandom($data['random'] ?? 0); //random questions
+  if ($data['random_answers']) $exercise->updateRandomAnswers($data['random_answers'] ?? 0);
+  if ($data['results_disabled']) $exercise->updateResultsDisabled($data['results_disabled'] ?? 0);
+  if ($data['expired_time']) $exercise->updateExpiredTime($data['expired_time'] ?? 0);
+  if ($data['propagate_neg']) $exercise->updatePropagateNegative($data['propagate_neg'] ?? 0);
+  if ($data['saveCorrectAnswers']) $exercise->updateSaveCorrectAnswers($data['saveCorrectAnswers'] ?? 0);
+  if ($data['randomByCat']) $exercise->updateRandomByCat($data['randomByCat'] ?? 0);
+  if ($data['text_when_finished']) $exercise->updateTextWhenFinished($data['text_when_finished'] ?? '');
+  if ($data['display_category_name']) $exercise->updateDisplayCategoryName($data['display_category_name'] ?? 1);
+  if ($data['review_answers']) $exercise->updateReviewAnswers($data['review_answers'] ?? 0);
+  if ($data['pass_percentage']) $exercise->updatePassPercentage($data['pass_percentage'] ?? 0);
+  if ($data['categories']) $exercise->updateCategories($data['categories']);
+  if ($data['endButton']) $exercise->updateEndButton($data['endButton']);
+  if ($data['onSuccessMessage']) $exercise->setOnSuccessMessage($data['onSuccessMessage']);
+  if ($data['onFailedMessage']) $exercise->setOnFailedMessage($data['onFailedMessage']);
+  if ($data['emailNotificationTemplate']) $exercise->updateEmailNotificationTemplate($data['emailNotificationTemplate']);
+  if ($data['emailNotificationTemplateToUser']) $exercise->setEmailNotificationTemplateToUser($data['emailNotificationTemplateToUser']);
+  if ($data['notifyUserByEmail']) $exercise->setNotifyUserByEmail($data['notifyUserByEmail']);
+  if ($data['modelType']) $exercise->setModelType($data['modelType'] ?? 1);
+  if ($data['questionSelectionType']) $exercise->setQuestionSelectionType($data['questionSelectionType'] ?? 0);
+  if ($data['hideQuestionTitle']) $exercise->setHideQuestionTitle($data['hideQuestionTitle'] ?? 0);
   $exercise->sessionId = api_get_session_id() ?? 0;
-  $exercise->setQuestionSelectionType($data['questionSelectionType']);
-  $exercise->setScoreTypeModel($data['scoreTypeModel']);
-  $exercise->setGlobalCategoryId($data['globalCategoryId']);
-  $exercise->setShowPreviousButton($data['showPreviousButton']);
-  $exercise->setNotifications($data['notifications']);
-  $exercise->setExerciseCategoryId($data['exerciseCategoryId']);
+  if ($data['questionSelectionType']) $exercise->setQuestionSelectionType($data['questionSelectionType']);
+  if ($data['scoreTypeModel']) $exercise->setScoreTypeModel($data['scoreTypeModel']);
+  if ($data['globalCategoryId']) $exercise->setGlobalCategoryId($data['globalCategoryId']);
+  if ($data['showPreviousButton']) $exercise->setShowPreviousButton($data['showPreviousButton']);
+  if ($data['notifications']) $exercise->setNotifications($data['notifications']);
+  if ($data['exerciseCategoryId']) $exercise->setExerciseCategoryId($data['exerciseCategoryId']);
   $exercise->setPageResultConfiguration($data);
   $showHideConfiguration = api_get_configuration_value('quiz_hide_question_number');
   if ($showHideConfiguration) {
-    $exercise->setHideQuestionNumber($data['hideQuestionNumber']);
+    if ($data['hideQuestionNumber']) $exercise->setHideQuestionNumber($data['hideQuestionNumber']);
   }
-  $exercise->preventBackwards = (int) $data['preventBackwards'];
+  if ($data['preventBackwards']) $exercise->preventBackwards = (int) $data['preventBackwards'];
 
   $exercise->start_time = null;
   if ($data['activate_start_date_check'] == 1) {
@@ -122,26 +122,26 @@ function createExercise($courseId, $data, $id = null, $type = '')
   }
 
   // Update title in all LPs that have exercise quiz added
-  // if ($data['update_title_in_lps'] == 1) {
-  //   $courseId = api_get_course_int_id();
-  //   $table = Database::get_course_table(TABLE_LP_ITEM);
-  //   $sql = "SELECT * FROM $table
-  //   WHERE
-  //   c_id = $courseId AND
-  //   item_type = 'quiz' AND
-  //   path = '".$exercise->iid."'
-  //   ";
-  //   $result = Database::query($sql);
-  //   $items = Database::store_result($result);
-  //   if (!empty($items)) {
-  //     foreach ($items as $item) {
-  //       $itemId = $item['iid'];
-  //       $sql = "UPDATE $table SET title = '".$exercise->title."'
-  //       WHERE iid = $itemId AND c_id = $courseId ";
-  //       Database::query($sql);
-  //     }
-  //   }
-  // }
+  if ($data['update_title_in_lps'] == 1) {
+    $courseId = api_get_course_int_id();
+    $table = Database::get_course_table(TABLE_LP_ITEM);
+    $sql = "SELECT * FROM $table
+    WHERE
+    c_id = $courseId AND
+    item_type = 'quiz' AND
+    path = '" . $exercise->iid . "'
+    ";
+    $result = Database::query($sql);
+    $items = Database::store_result($result);
+    if (!empty($items)) {
+      foreach ($items as $item) {
+        $itemId = $item['iid'];
+        $sql = "UPDATE $table SET title = '" . $exercise->title . "'
+        WHERE iid = $itemId AND c_id = $courseId ";
+        Database::query($sql);
+      }
+    }
+  }
 
   $iid = $exercise->save($type);
   if (!empty($iid)) {
